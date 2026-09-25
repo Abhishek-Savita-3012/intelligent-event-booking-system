@@ -1,6 +1,8 @@
 package com.abhishek.eventbooking.controller;
 
+import com.abhishek.eventbooking.dto.request.LoginRequest;
 import com.abhishek.eventbooking.dto.request.RegisterRequest;
+import com.abhishek.eventbooking.dto.response.LoginResponse;
 import com.abhishek.eventbooking.dto.response.UserResponse;
 import com.abhishek.eventbooking.service.AuthService;
 import jakarta.validation.Valid;
@@ -29,5 +31,13 @@ public class AuthController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    @PostMapping("/login")
+    public ResponseEntity<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
+
+        LoginResponse response = authService.login(request);
+
+        return ResponseEntity.ok(response);
     }
 }
