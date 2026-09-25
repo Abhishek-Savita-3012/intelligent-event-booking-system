@@ -18,5 +18,11 @@ public class LoginResponse {
 
     private Role role;
 
-    private String message;
+    private String token;
+
+    private String tokenType;
+
+    private long expiresIn;
+
+    String message;
 }

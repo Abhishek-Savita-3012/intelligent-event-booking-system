@@ -7,6 +7,7 @@ import com.abhishek.eventbooking.dto.response.UserResponse;
 import com.abhishek.eventbooking.entity.Role;
 import com.abhishek.eventbooking.entity.User;
 import com.abhishek.eventbooking.repository.UserRepository;
+import com.abhishek.eventbooking.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -15,10 +16,12 @@ public class AuthService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final JwtService jwtService;
 
-    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
+    public AuthService(UserRepository userRepository, PasswordEncoder passwordEncoder, JwtService jwtService) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.jwtService = jwtService;
     }
 
     public UserResponse register(RegisterRequest request) {
@@ -65,12 +68,17 @@ public class AuthService {
             );
         }
 
+        String token = jwtService.generateToken(user);
+
         return LoginResponse.builder()
                 .id(user.getId())
                 .name(user.getName())
                 .email(user.getEmail())
                 .role(user.getRole())
-                .message("Login successful")
+                .token(token)
+                .tokenType("Bearer")
+                .expiresIn(jwtService.getExpirationTime())
+                .message("Login Successful")
                 .build();
     }
 }
