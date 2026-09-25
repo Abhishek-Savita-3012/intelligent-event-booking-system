@@ -6,9 +6,19 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import com.abhishek.eventbooking.security.JwtAuthenticationFilter;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import jakarta.servlet.http.HttpServletResponse;
 
 @Configuration
 public class SecurityConfig {
+
+    private final JwtAuthenticationFilter jwtAuthenticationFilter;
+
+    public SecurityConfig(JwtAuthenticationFilter jwtAuthenticationFilter) {
+        this.jwtAuthenticationFilter = jwtAuthenticationFilter;
+    }
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -16,13 +26,49 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
 
+                .sessionManagement(session ->
+                        session.sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS
+                        )
+                )
+
+                .exceptionHandling(exception -> exception
+
+                        .authenticationEntryPoint(
+                                (request, response, authException) -> {
+
+                                    response.sendError(
+                                            HttpServletResponse.SC_UNAUTHORIZED,
+                                            "Unauthorized"
+                                    );
+                                }
+                        )
+
+                        .accessDeniedHandler(
+                                (request, response, accessDeniedException) -> {
+
+                                    response.sendError(
+                                            HttpServletResponse.SC_FORBIDDEN,
+                                            "Forbidden"
+                                    );
+                                }
+                        )
+                )
+
                 .authorizeHttpRequests(auth -> auth
+
                         .requestMatchers(
                                 "/api/health",
                                 "/api/auth/register",
                                 "/api/auth/login"
                         ).permitAll()
+
                         .anyRequest().authenticated()
+                )
+
+                .addFilterBefore(
+                        jwtAuthenticationFilter,
+                        UsernamePasswordAuthenticationFilter.class
                 );
 
         return http.build();
