@@ -37,9 +37,22 @@ public class SecurityConfig {
                         .authenticationEntryPoint(
                                 (request, response, authException) -> {
 
-                                    response.sendError(
-                                            HttpServletResponse.SC_UNAUTHORIZED,
-                                            "Unauthorized"
+                                    response.setStatus(
+                                            HttpServletResponse.SC_UNAUTHORIZED
+                                    );
+
+                                    response.setContentType(
+                                            "application/json"
+                                    );
+
+                                    response.getWriter().write(
+                                            """
+                                            {
+                                              "status": 401,
+                                              "error": "Unauthorized",
+                                              "message": "Authentication is required"
+                                            }
+                                            """
                                     );
                                 }
                         )
@@ -47,9 +60,22 @@ public class SecurityConfig {
                         .accessDeniedHandler(
                                 (request, response, accessDeniedException) -> {
 
-                                    response.sendError(
-                                            HttpServletResponse.SC_FORBIDDEN,
-                                            "Forbidden"
+                                    response.setStatus(
+                                            HttpServletResponse.SC_FORBIDDEN
+                                    );
+
+                                    response.setContentType(
+                                            "application/json"
+                                    );
+
+                                    response.getWriter().write(
+                                            """
+                                            {
+                                              "status": 403,
+                                              "error": "Forbidden",
+                                              "message": "You do not have permission to access this resource"
+                                            }
+                                            """
                                     );
                                 }
                         )
@@ -62,6 +88,12 @@ public class SecurityConfig {
                                 "/api/auth/register",
                                 "/api/auth/login"
                         ).permitAll()
+
+                        .requestMatchers("/api/admin/**")
+                        .hasRole("ADMIN")
+
+                        .requestMatchers("/api/user/**")
+                        .hasAnyRole("USER", "ADMIN")
 
                         .anyRequest().authenticated()
                 )
