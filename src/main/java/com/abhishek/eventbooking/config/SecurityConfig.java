@@ -90,8 +90,10 @@ public class SecurityConfig {
                                 "/error"
                         ).permitAll()
 
-                        .requestMatchers("/api/venues/**")
-                        .permitAll()
+                        .requestMatchers(
+                                "/api/venues/**",
+                                "/api/events/**"
+                        ).permitAll()
 
                         .requestMatchers("/api/admin/**")
                         .hasRole("ADMIN")
