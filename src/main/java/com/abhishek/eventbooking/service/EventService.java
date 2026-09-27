@@ -3,6 +3,7 @@ package com.abhishek.eventbooking.service;
 import com.abhishek.eventbooking.dto.request.EventRequest;
 import com.abhishek.eventbooking.dto.response.EventResponse;
 import com.abhishek.eventbooking.entity.Event;
+import com.abhishek.eventbooking.entity.EventCategory;
 import com.abhishek.eventbooking.entity.EventStatus;
 import com.abhishek.eventbooking.entity.Venue;
 import com.abhishek.eventbooking.repository.EventRepository;
@@ -49,18 +50,17 @@ public class EventService {
         return mapToResponse(savedEvent);
     }
 
-    public List<EventResponse> getAllEvents() {
-
-        return eventRepository.findAll()
-                .stream()
-                .map(this::mapToResponse)
-                .toList();
-    }
+//    public List<EventResponse> getAllEvents() {
+//
+//        return eventRepository.findAll()
+//                .stream()
+//                .map(this::mapToResponse)
+//                .toList();
+//    }
 
     public EventResponse getEventById(Long id) {
 
-        Event event = eventRepository
-                .findById(id)
+        Event event = eventRepository.findById(id)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
                                 "Event not found with id: " + id
@@ -123,6 +123,49 @@ public class EventService {
                     "End time must be after start time"
             );
         }
+    }
+
+    public List<EventResponse> searchEvents(String name, String city, EventCategory category, EventStatus status) {
+
+        List<Event> events;
+
+        boolean hasName = name != null && !name.isBlank();
+        boolean hasCity = city != null && !city.isBlank();
+        boolean hasCategory = category != null;
+        boolean hasStatus = status != null;
+
+        if (hasName && !hasCity && !hasCategory && !hasStatus) {
+            events = eventRepository.findByNameContainingIgnoreCase(name.trim());
+
+        } else if (hasCity && hasCategory && hasStatus) {
+            events = eventRepository.findByVenueCityIgnoreCaseAndCategoryAndStatus(city.trim(), category, status);
+
+        } else if (hasCity && hasCategory) {
+            events = eventRepository.findByVenueCityIgnoreCaseAndCategory(city.trim(), category);
+
+        } else if (hasCity && hasStatus) {
+            events = eventRepository.findByVenueCityIgnoreCaseAndStatus(city.trim(), status);
+
+        } else if (hasCategory && hasStatus) {
+            events = eventRepository.findByCategoryAndStatus(category, status);
+
+        } else if (hasCity) {
+            events = eventRepository.findByVenueCityIgnoreCase(city.trim());
+
+        } else if (hasCategory) {
+            events = eventRepository.findByCategory(category);
+
+        } else if (hasStatus) {
+            events = eventRepository.findByStatus(status);
+
+        } else {
+            events = eventRepository.findAll();
+        }
+
+        return events
+                .stream()
+                .map(this::mapToResponse)
+                .toList();
     }
 
     private EventResponse mapToResponse(Event event) {

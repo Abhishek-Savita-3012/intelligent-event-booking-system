@@ -1,6 +1,8 @@
 package com.abhishek.eventbooking.controller;
 
 import com.abhishek.eventbooking.dto.response.EventResponse;
+import com.abhishek.eventbooking.entity.EventCategory;
+import com.abhishek.eventbooking.entity.EventStatus;
 import com.abhishek.eventbooking.service.EventService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -18,10 +20,28 @@ public class EventController {
     }
 
     @GetMapping
-    public ResponseEntity<List<EventResponse>> getAllEvents() {
+    public ResponseEntity<List<EventResponse>> searchEvents(
+
+            @RequestParam(required = false)
+            String name,
+
+            @RequestParam(required = false)
+            String city,
+
+            @RequestParam(required = false)
+            EventCategory category,
+
+            @RequestParam(required = false)
+            EventStatus status
+    ) {
 
         return ResponseEntity.ok(
-                eventService.getAllEvents()
+                eventService.searchEvents(
+                        name,
+                        city,
+                        category,
+                        status
+                )
         );
     }
 
