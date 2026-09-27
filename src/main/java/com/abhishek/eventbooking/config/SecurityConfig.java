@@ -92,6 +92,7 @@ public class SecurityConfig {
 
                         .requestMatchers(
                                 "/api/venues/**",
+                                "/api/halls/**",
                                 "/api/events/**"
                         ).permitAll()
 

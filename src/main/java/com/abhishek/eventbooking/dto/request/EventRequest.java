@@ -31,8 +31,8 @@ public class EventRequest {
     @NotNull(message = "Category is required")
     private EventCategory category;
 
-    @NotNull(message = "Venue id is required")
-    private Long venueId;
+    @NotNull(message = "Hall id is required")
+    private Long hallId;
 
     @NotNull(message = "Start time is required")
     @Future(message = "Start time must be in the future")

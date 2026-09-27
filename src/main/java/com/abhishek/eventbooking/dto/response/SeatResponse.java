@@ -12,6 +12,10 @@ public class SeatResponse {
 
     private Long id;
 
+    private Long hallId;
+
+    private String hallName;
+
     private Long venueId;
 
     private String rowName;

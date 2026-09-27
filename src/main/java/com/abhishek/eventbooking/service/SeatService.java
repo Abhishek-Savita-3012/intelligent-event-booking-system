@@ -2,8 +2,10 @@ package com.abhishek.eventbooking.service;
 
 import com.abhishek.eventbooking.dto.request.SeatRequest;
 import com.abhishek.eventbooking.dto.response.SeatResponse;
+import com.abhishek.eventbooking.entity.Hall;
 import com.abhishek.eventbooking.entity.Seat;
 import com.abhishek.eventbooking.entity.Venue;
+import com.abhishek.eventbooking.repository.HallRepository;
 import com.abhishek.eventbooking.repository.SeatRepository;
 import com.abhishek.eventbooking.repository.VenueRepository;
 import org.springframework.stereotype.Service;
@@ -14,26 +16,31 @@ import java.util.List;
 public class SeatService {
 
     private final SeatRepository seatRepository;
-    private final VenueRepository venueRepository;
+    private final HallRepository hallRepository;
 
-    public SeatService(SeatRepository seatRepository, VenueRepository venueRepository) {
+    public SeatService(SeatRepository seatRepository, HallRepository hallRepository) {
         this.seatRepository = seatRepository;
-        this.venueRepository = venueRepository;
+        this.hallRepository = hallRepository;
     }
 
-    public SeatResponse createSeat(Long venueId, SeatRequest request) {
+    public SeatResponse createSeat(Long hallId, SeatRequest request) {
 
-        Venue venue = venueRepository
-                .findById(venueId)
+        Hall hall = hallRepository.findById(hallId)
                 .orElseThrow(() ->
                         new IllegalArgumentException(
-                                "Venue not found with id: " + venueId
+                                "Hall not found with id: "
+                                        + hallId
                         )
                 );
 
         String rowName = request.getRowName().trim().toUpperCase();
 
-        if (seatRepository.existsByVenueIdAndRowNameAndSeatNumber(venueId, rowName, request.getSeatNumber())) {
+        if (seatRepository.existsByHallIdAndRowNameAndSeatNumber(
+                        hallId,
+                        rowName,
+                        request.getSeatNumber()
+                )) {
+
             throw new IllegalArgumentException(
                     "Seat already exists: "
                             + rowName
@@ -42,27 +49,24 @@ public class SeatService {
         }
 
         Seat seat = Seat.builder()
-                .venue(venue)
+                .hall(hall)
                 .rowName(rowName)
                 .seatNumber(request.getSeatNumber())
                 .seatType(request.getSeatType())
                 .build();
 
-        Seat savedSeat = seatRepository.save(seat);
-
-        return mapToResponse(savedSeat);
+        return mapToResponse(seatRepository.save(seat));
     }
 
-    public List<SeatResponse> getSeatsByVenue(Long venueId) {
+    public List<SeatResponse> getSeatsByHall(Long hallId) {
 
-        if (!venueRepository.existsById(venueId)) {
+        if (!hallRepository.existsById(hallId)) {
             throw new IllegalArgumentException(
-                    "Venue not found with id: " + venueId
+                    "Hall not found with id: " + hallId
             );
         }
 
-        return seatRepository
-                .findByVenueIdOrderByRowNameAscSeatNumberAsc(venueId)
+        return seatRepository.findByHallIdOrderByRowNameAscSeatNumberAsc(hallId)
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
@@ -72,7 +76,9 @@ public class SeatService {
 
         return SeatResponse.builder()
                 .id(seat.getId())
-                .venueId(seat.getVenue().getId())
+                .hallId(seat.getHall().getId())
+                .hallName(seat.getHall().getName())
+                .venueId(seat.getHall().getVenue().getId())
                 .rowName(seat.getRowName())
                 .seatNumber(seat.getSeatNumber())
                 .seatType(seat.getSeatType())

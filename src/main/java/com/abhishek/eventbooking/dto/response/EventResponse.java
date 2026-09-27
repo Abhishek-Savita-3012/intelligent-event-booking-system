@@ -21,6 +21,10 @@ public class EventResponse {
 
     private EventCategory category;
 
+    private Long hallId;
+
+    private String hallName;
+
     private Long venueId;
 
     private String venueName;

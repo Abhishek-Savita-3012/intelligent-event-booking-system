@@ -33,10 +33,10 @@ public class Event {
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(
-            name = "venue_id",
+            name = "hall_id",
             nullable = false
     )
-    private Venue venue;
+    private Hall hall;
 
     @Column(nullable = false)
     private LocalDateTime startTime;

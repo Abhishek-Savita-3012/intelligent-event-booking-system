@@ -8,7 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/venues/{venueId}/seats")
+@RequestMapping("/api/halls/{hallId}/seats")
 public class SeatController {
 
     private final SeatService seatService;
@@ -18,10 +18,10 @@ public class SeatController {
     }
 
     @GetMapping
-    public ResponseEntity<List<SeatResponse>> getSeatsByVenue(@PathVariable Long venueId) {
+    public ResponseEntity<List<SeatResponse>> getSeatsByHall(@PathVariable Long hallId) {
 
         return ResponseEntity.ok(
-                seatService.getSeatsByVenue(venueId)
+                seatService.getSeatsByHall(hallId)
         );
     }
 }

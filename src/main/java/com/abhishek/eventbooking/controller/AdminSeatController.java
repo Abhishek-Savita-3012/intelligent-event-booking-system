@@ -9,7 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
-@RequestMapping("/api/admin/venues/{venueId}/seats")
+@RequestMapping("/api/admin/halls/{hallId}/seats")
 public class AdminSeatController {
 
     private final SeatService seatService;
@@ -19,9 +19,9 @@ public class AdminSeatController {
     }
 
     @PostMapping
-    public ResponseEntity<SeatResponse> createSeat(@PathVariable Long venueId, @Valid @RequestBody SeatRequest request) {
+    public ResponseEntity<SeatResponse> createSeat(@PathVariable Long hallId, @Valid @RequestBody SeatRequest request) {
 
-        SeatResponse response = seatService.createSeat(venueId, request);
+        SeatResponse response = seatService.createSeat(hallId, request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)

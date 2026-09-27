@@ -9,7 +9,7 @@ import lombok.*;
         uniqueConstraints = {
                 @UniqueConstraint(
                         columnNames = {
-                                "venue_id",
+                                "hall_id",
                                 "row_name",
                                 "seat_number"
                         }
@@ -28,22 +28,13 @@ public class Seat {
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(
-            name = "venue_id",
-            nullable = false
-    )
-    private Venue venue;
+    @JoinColumn(name = "hall_id", nullable = false)
+    private Hall hall;
 
-    @Column(
-            name = "row_name",
-            nullable = false
-    )
+    @Column(name = "row_name", nullable = false)
     private String rowName;
 
-    @Column(
-            name = "seat_number",
-            nullable = false
-    )
+    @Column(name = "seat_number", nullable = false)
     private Integer seatNumber;
 
     @Enumerated(EnumType.STRING)

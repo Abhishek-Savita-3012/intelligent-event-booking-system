@@ -7,12 +7,12 @@ import java.util.List;
 
 public interface SeatRepository extends JpaRepository<Seat, Long> {
 
-    List<Seat> findByVenueIdOrderByRowNameAscSeatNumberAsc(
-            Long venueId
+    List<Seat> findByHallIdOrderByRowNameAscSeatNumberAsc(
+            Long hallId
     );
 
-    boolean existsByVenueIdAndRowNameAndSeatNumber(
-            Long venueId,
+    boolean existsByHallIdAndRowNameAndSeatNumber(
+            Long hallId,
             String rowName,
             Integer seatNumber
     );
