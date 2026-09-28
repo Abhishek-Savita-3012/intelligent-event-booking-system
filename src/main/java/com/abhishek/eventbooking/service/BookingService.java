@@ -64,7 +64,17 @@ public class BookingService {
 
         validateDuplicateSeatIds(request.getEventSeatIds());
 
-        List<EventSeat> eventSeats = eventSeatRepository.findAllByIdIn(request.getEventSeatIds());
+        List<Long> sortedSeatIds =
+                request.getEventSeatIds()
+                        .stream()
+                        .sorted()
+                        .toList();
+
+        List<EventSeat> eventSeats =
+                eventSeatRepository
+                        .findAllByIdInForUpdate(
+                                sortedSeatIds
+                        );
 
         validateAllSeatsFound(eventSeats, request.getEventSeatIds());
 
