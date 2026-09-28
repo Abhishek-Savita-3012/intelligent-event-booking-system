@@ -72,6 +72,10 @@ public class BookingService {
 
         validateSeatsAvailable(eventSeats);
 
+        eventSeats.forEach(eventSeat -> eventSeat.setStatus(EventSeatStatus.BOOKED));
+
+        eventSeatRepository.saveAll(eventSeats);
+
         BigDecimal totalAmount = calculateTotal(eventSeats);
 
         Booking booking = Booking.builder()
