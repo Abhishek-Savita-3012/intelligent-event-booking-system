@@ -15,4 +15,8 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
             Long eventId,
             Long seatId
     );
+
+    List<EventSeat> findAllByIdIn(
+            List<Long> ids
+    );
 }
