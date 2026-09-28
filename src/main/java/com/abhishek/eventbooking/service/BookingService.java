@@ -10,6 +10,7 @@ import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.UserRepository;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,6 +42,7 @@ public class BookingService {
         this.userRepository = userRepository;
     }
 
+    @Transactional
     public BookingResponse createBooking(String email, BookingRequest request) {
 
         User user = userRepository.findByEmail(email)
