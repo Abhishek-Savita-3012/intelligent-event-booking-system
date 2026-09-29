@@ -52,8 +52,7 @@ public class BookingExpirationService {
             if (
                     booking != null &&
                             booking.getStatus() == BookingStatus.PENDING
-                            && processedBookingIds.add(booking.getId()
-                    )
+                            && processedBookingIds.add(booking.getId())
             ) {
 
                 booking.setStatus(BookingStatus.EXPIRED);

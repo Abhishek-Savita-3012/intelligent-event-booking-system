@@ -55,4 +55,16 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
             @Param("now")
             LocalDateTime now
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT es
+        FROM EventSeat es
+        WHERE es.lockedByBooking.bookingReference = :bookingReference
+        ORDER BY es.id
+        """)
+    List<EventSeat> findByBookingReferenceForUpdate(
+            @Param("bookingReference")
+            String bookingReference
+    );
 }
