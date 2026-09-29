@@ -4,6 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
 @Table(
@@ -42,4 +43,11 @@ public class EventSeat {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private EventSeatStatus status;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "locked_by_booking_id")
+    private Booking lockedByBooking;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
 }

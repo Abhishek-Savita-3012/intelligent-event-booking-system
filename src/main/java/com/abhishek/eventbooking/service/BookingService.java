@@ -11,6 +11,7 @@ import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.UserRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Value;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -42,6 +43,9 @@ public class BookingService {
         this.userRepository = userRepository;
     }
 
+    @Value("${booking.lock-duration-seconds:300}")
+    private long lockDurationSeconds;
+
     @Transactional
     public BookingResponse createBooking(String email, BookingRequest request) {
 
@@ -70,36 +74,43 @@ public class BookingService {
                         .sorted()
                         .toList();
 
-        List<EventSeat> eventSeats =
-                eventSeatRepository
-                        .findAllByIdInForUpdate(
-                                sortedSeatIds
-                        );
+        /*
+         * IMPORTANT:
+         * Seats are loaded with PESSIMISTIC_WRITE.
+         *
+         * No other booking transaction can modify
+         * these seats until this transaction finishes.
+         */
+        List<EventSeat> eventSeats = eventSeatRepository.findAllByIdInForUpdate(sortedSeatIds);
 
         validateAllSeatsFound(eventSeats, request.getEventSeatIds());
 
         validateSeatsBelongToEvent(eventSeats, event);
 
+        /*
+         * If one of these seats has an old expired
+         * lock, release it before validating.
+         */
+        releaseExpiredLocks(eventSeats);
+
         validateSeatsAvailable(eventSeats);
-
-        eventSeats.forEach(eventSeat -> eventSeat.setStatus(EventSeatStatus.BOOKED));
-
-        eventSeatRepository.saveAll(eventSeats);
 
         BigDecimal totalAmount = calculateTotal(eventSeats);
 
+        LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(lockDurationSeconds);
+
         Booking booking = Booking.builder()
-                .user(user)
-                .event(event)
-                .bookingReference(generateBookingReference())
-                .totalAmount(totalAmount)
-                .status(BookingStatus.PENDING)
-                .build();
+                        .user(user)
+                        .event(event)
+                        .bookingReference(generateBookingReference())
+                        .totalAmount(totalAmount)
+                        .status(BookingStatus.PENDING)
+                        .expiresAt(expiresAt)
+                        .build();
 
         Booking savedBooking = bookingRepository.save(booking);
 
-        List<BookingSeat> bookingSeats =
-                eventSeats.stream()
+        List<BookingSeat> bookingSeats = eventSeats.stream()
                         .map(eventSeat ->
                                 BookingSeat.builder()
                                         .booking(savedBooking)
@@ -111,7 +122,50 @@ public class BookingService {
 
         bookingSeatRepository.saveAll(bookingSeats);
 
+        /*
+         * Temporary business reservation.
+         *
+         * This is different from the database
+         * PESSIMISTIC_WRITE lock.
+         */
+        eventSeats.forEach(eventSeat -> {
+
+            eventSeat.setStatus(EventSeatStatus.LOCKED);
+            eventSeat.setLockedByBooking(savedBooking);
+            eventSeat.setLockedUntil(expiresAt);
+        });
+
+        eventSeatRepository.saveAll(eventSeats);
+
         return mapToResponse(savedBooking, bookingSeats);
+    }
+
+    private void releaseExpiredLocks(List<EventSeat> eventSeats) {
+
+        LocalDateTime now = LocalDateTime.now();
+
+        for (EventSeat eventSeat : eventSeats) {
+
+            if (
+                    eventSeat.getStatus() == EventSeatStatus.LOCKED
+                            && eventSeat.getLockedUntil() != null
+                            && !eventSeat.getLockedUntil().isAfter(now)
+            ) {
+
+                Booking oldBooking = eventSeat.getLockedByBooking();
+
+                eventSeat.setStatus(EventSeatStatus.AVAILABLE);
+                eventSeat.setLockedUntil(null);
+                eventSeat.setLockedByBooking(null);
+
+                if (oldBooking != null && oldBooking.getStatus() == BookingStatus.PENDING) {
+
+                    oldBooking.setStatus(BookingStatus.EXPIRED);
+
+                    bookingRepository.save(oldBooking);
+                }
+            }
+        }
     }
 
     private void validateEvent(Event event) {
@@ -231,6 +285,7 @@ public class BookingService {
                 .totalAmount(booking.getTotalAmount())
                 .status(booking.getStatus())
                 .createdAt(booking.getCreatedAt())
+                .expiresAt(booking.getExpiresAt())
                 .seats(seatResponses)
                 .build();
     }

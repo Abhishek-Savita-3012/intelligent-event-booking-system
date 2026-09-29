@@ -30,5 +30,7 @@ public class BookingResponse {
 
     private LocalDateTime createdAt;
 
+    private LocalDateTime expiresAt;
+
     private List<BookingSeatResponse> seats;
 }

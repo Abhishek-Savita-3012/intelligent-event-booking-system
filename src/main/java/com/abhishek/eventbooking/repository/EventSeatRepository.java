@@ -1,12 +1,14 @@
 package com.abhishek.eventbooking.repository;
 
 import com.abhishek.eventbooking.entity.EventSeat;
+import com.abhishek.eventbooking.entity.EventSeatStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
@@ -37,4 +39,20 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
             List<Long> ids
     );
 
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            SELECT es
+            FROM EventSeat es
+            WHERE es.status = :status
+            AND es.lockedUntil IS NOT NULL
+            AND es.lockedUntil <= :now
+            ORDER BY es.id
+            """)
+    List<EventSeat> findExpiredLockedSeatsForUpdate(
+            @Param("status")
+            EventSeatStatus status,
+
+            @Param("now")
+            LocalDateTime now
+    );
 }
