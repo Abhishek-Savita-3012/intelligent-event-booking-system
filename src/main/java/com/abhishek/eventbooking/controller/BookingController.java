@@ -1,6 +1,8 @@
 package com.abhishek.eventbooking.controller;
 
 import com.abhishek.eventbooking.dto.request.BookingRequest;
+import com.abhishek.eventbooking.dto.response.BookingDetailsResponse;
+import com.abhishek.eventbooking.dto.response.BookingHistoryResponse;
 import com.abhishek.eventbooking.dto.response.BookingResponse;
 import com.abhishek.eventbooking.service.BookingService;
 import jakarta.validation.Valid;
@@ -8,6 +10,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/bookings")
@@ -19,6 +23,10 @@ public class BookingController {
         this.bookingService = bookingService;
     }
 
+    // ==============================
+    // CREATE BOOKING
+    // ==============================
+
     @PostMapping
     public ResponseEntity<BookingResponse> createBooking(Authentication authentication, @Valid @RequestBody BookingRequest request) {
 
@@ -27,5 +35,30 @@ public class BookingController {
         return ResponseEntity
                 .status(HttpStatus.CREATED)
                 .body(response);
+    }
+
+    // ==============================
+    // MY BOOKING HISTORY
+    // ==============================
+
+    @GetMapping("/my")
+    public ResponseEntity<List<BookingHistoryResponse>> getMyBookings(Authentication authentication) {
+
+        return ResponseEntity.ok(
+                bookingService.getMyBookings(authentication.getName())
+        );
+    }
+
+    // ==============================
+    // BOOKING DETAILS
+    // ==============================
+
+    @GetMapping("/{bookingReference}")
+    public ResponseEntity<BookingDetailsResponse> getBookingDetails(@PathVariable String bookingReference,
+            Authentication authentication) {
+
+        return ResponseEntity.ok(
+                bookingService.getBookingDetails(authentication.getName(), bookingReference)
+        );
     }
 }
