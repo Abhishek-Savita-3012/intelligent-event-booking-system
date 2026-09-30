@@ -1,6 +1,7 @@
 package com.abhishek.eventbooking.repository;
 
 import com.abhishek.eventbooking.entity.Payment;
+import com.abhishek.eventbooking.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -18,5 +19,10 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
     Optional<Payment> findTopByBookingIdOrderByCreatedAtDesc(
             Long bookingId
+    );
+
+    Optional<Payment> findTopByBookingIdAndStatusOrderByCreatedAtDesc(
+            Long bookingId,
+            PaymentStatus status
     );
 }

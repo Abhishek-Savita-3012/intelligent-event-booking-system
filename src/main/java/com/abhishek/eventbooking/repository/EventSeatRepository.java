@@ -67,4 +67,17 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
             @Param("bookingReference")
             String bookingReference
     );
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+        SELECT es
+        FROM BookingSeat bs
+        JOIN bs.eventSeat es
+        WHERE bs.booking.bookingReference = :bookingReference
+        ORDER BY es.id
+        """)
+    List<EventSeat> findByBookingReferenceThroughBookingSeatsForUpdate(
+            @Param("bookingReference")
+            String bookingReference
+    );
 }
