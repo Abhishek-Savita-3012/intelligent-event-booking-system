@@ -7,6 +7,8 @@ import jakarta.persistence.LockModeType;
 import org.springframework.data.jpa.repository.Lock;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 
 
 import java.util.List;
@@ -23,7 +25,7 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     );
 
     // ==============================
-    // PESSIMISTIC LOCK
+    // PESSIMISTIC LOCK BOOKING
     // ==============================
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
@@ -40,36 +42,130 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     long countByStatus(BookingStatus status);
 
     // ==============================
-    // ADMIN - ALL BOOKINGS
+    // ADMIN SEARCH + FILTER
+    // + PAGINATION + SORTING
     // ==============================
 
-    @Query("""
-            SELECT b
-            FROM Booking b
-            JOIN FETCH b.user
-            JOIN FETCH b.event e
-            JOIN FETCH e.hall h
-            JOIN FETCH h.venue v
-            ORDER BY b.createdAt DESC
-            """)
-    List<Booking> findAllForAdmin();
+    @Query(
+            value = """
+                    SELECT b
+                    FROM Booking b
 
-    // ==============================
-    // ADMIN - FILTER BY STATUS
-    // ==============================
+                    JOIN FETCH b.user u
+                    JOIN FETCH b.event e
+                    JOIN FETCH e.hall h
+                    JOIN FETCH h.venue v
 
-    @Query("""
-            SELECT b
-            FROM Booking b
-            JOIN FETCH b.user
-            JOIN FETCH b.event e
-            JOIN FETCH e.hall h
-            JOIN FETCH h.venue v
-            WHERE b.status = :status
-            ORDER BY b.createdAt DESC
-            """)
-    List<Booking> findAllForAdminByStatus(
+                    WHERE
+                        (:status IS NULL
+                            OR b.status = :status)
+
+                    AND
+                        (
+                            :search IS NULL
+
+                            OR :search = ''
+
+                            OR LOWER(b.bookingReference)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+
+                            OR LOWER(u.name)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+
+                            OR LOWER(u.email)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+
+                            OR LOWER(e.name)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+                        )
+                    """,
+
+            countQuery = """
+                    SELECT COUNT(b)
+                    FROM Booking b
+
+                    JOIN b.user u
+                    JOIN b.event e
+
+                    WHERE
+                        (:status IS NULL
+                            OR b.status = :status)
+
+                    AND
+                        (
+                            :search IS NULL
+
+                            OR :search = ''
+
+                            OR LOWER(b.bookingReference)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+
+                            OR LOWER(u.name)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+
+                            OR LOWER(u.email)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+
+                            OR LOWER(e.name)
+                                LIKE LOWER(
+                                    CONCAT(
+                                        '%',
+                                        :search,
+                                        '%'
+                                    )
+                                )
+                        )
+                    """
+    )
+    Page<Booking> searchAdminBookings(
             @Param("status")
-            BookingStatus status
+            BookingStatus status,
+
+            @Param("search")
+            String search,
+
+            Pageable pageable
     );
 }

@@ -5,6 +5,12 @@ import com.abhishek.eventbooking.entity.*;
 import com.abhishek.eventbooking.repository.BookingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.abhishek.eventbooking.dto.response.PagedResponse;
+
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.util.List;
 
@@ -18,20 +24,102 @@ public class AdminBookingService {
     }
 
     @Transactional(readOnly = true)
-    public List<AdminBookingResponse> getBookings(BookingStatus status) {
+    public PagedResponse<AdminBookingResponse>
+    getBookings(
+            BookingStatus status,
+            String search,
+            int page,
+            int size,
+            String sortBy,
+            String direction
+    ) {
 
-        List<Booking> bookings;
+        validatePagination(page, size);
+        String validatedSortField = validateSortField(sortBy);
 
-        if (status == null) {
-            bookings = bookingRepository.findAllForAdmin();
+        Sort.Direction sortDirection = parseSortDirection(direction);
 
-        } else {
-            bookings = bookingRepository.findAllForAdminByStatus(status);
+        Pageable pageable =
+                PageRequest.of(
+                        page,
+                        size,
+                        Sort.by(
+                                sortDirection,
+                                validatedSortField
+                        )
+                );
+
+        String normalizedSearch = search == null ? null : search.trim();
+
+        Page<Booking> bookingPage = bookingRepository.searchAdminBookings(status, normalizedSearch, pageable);
+
+        List<AdminBookingResponse> content = bookingPage
+                        .getContent()
+                        .stream()
+                        .map(this::mapToResponse)
+                        .toList();
+
+        return new PagedResponse<>(
+                content,
+                bookingPage.getNumber(),
+                bookingPage.getSize(),
+                bookingPage.getTotalElements(),
+                bookingPage.getTotalPages(),
+                bookingPage.isFirst(),
+                bookingPage.isLast()
+        );
+    }
+
+    private void validatePagination(int page, int size) {
+        if (page < 0) {
+
+            throw new IllegalArgumentException(
+                    "Page number cannot be negative"
+            );
         }
 
-        return bookings.stream()
-                .map(this::mapToResponse)
-                .toList();
+        if (size < 1 || size > 100) {
+            throw new IllegalArgumentException(
+                    "Page size must be between 1 and 100"
+            );
+        }
+    }
+
+    private String validateSortField(String sortBy) {
+
+        if (sortBy == null || sortBy.isBlank()) {
+            return "createdAt";
+        }
+
+        return switch (sortBy) {
+            case "id",
+                 "bookingReference",
+                 "totalAmount",
+                 "status",
+                 "createdAt"
+                    -> sortBy;
+
+            default ->
+                    throw new IllegalArgumentException(
+                            "Invalid sort field: "
+                                    + sortBy
+                    );
+        };
+    }
+
+    private Sort.Direction parseSortDirection(String direction) {
+
+        if (direction == null || direction.equalsIgnoreCase("desc")) {
+            return Sort.Direction.DESC;
+        }
+
+        if (direction.equalsIgnoreCase("asc")) {
+            return Sort.Direction.ASC;
+        }
+
+        throw new IllegalArgumentException(
+                "Sort direction must be 'asc' or 'desc'"
+        );
     }
 
     private AdminBookingResponse mapToResponse(Booking booking) {
