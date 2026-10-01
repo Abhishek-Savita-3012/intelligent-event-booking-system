@@ -1,6 +1,7 @@
 package com.abhishek.eventbooking.repository;
 
 import com.abhishek.eventbooking.entity.BookingSeat;
+import com.abhishek.eventbooking.entity.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,5 +25,15 @@ public interface BookingSeatRepository extends JpaRepository<BookingSeat, Long> 
     List<BookingSeat> findByBookingIdOrdered(
             @Param("bookingId")
             Long bookingId
+    );
+
+    @Query("""
+        SELECT COUNT(bs)
+        FROM BookingSeat bs
+        WHERE bs.booking.status = :status
+        """)
+    long countSeatsByBookingStatus(
+            @Param("status")
+            BookingStatus status
     );
 }
