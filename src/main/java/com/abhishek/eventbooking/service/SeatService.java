@@ -5,6 +5,8 @@ import com.abhishek.eventbooking.dto.response.SeatResponse;
 import com.abhishek.eventbooking.entity.Hall;
 import com.abhishek.eventbooking.entity.Seat;
 import com.abhishek.eventbooking.entity.Venue;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.HallRepository;
 import com.abhishek.eventbooking.repository.SeatRepository;
 import com.abhishek.eventbooking.repository.VenueRepository;
@@ -27,7 +29,7 @@ public class SeatService {
 
         Hall hall = hallRepository.findById(hallId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Hall not found with id: "
                                         + hallId
                         )
@@ -41,7 +43,7 @@ public class SeatService {
                         request.getSeatNumber()
                 )) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Seat already exists: "
                             + rowName
                             + request.getSeatNumber()
@@ -61,7 +63,7 @@ public class SeatService {
     public List<SeatResponse> getSeatsByHall(Long hallId) {
 
         if (!hallRepository.existsById(hallId)) {
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "Hall not found with id: " + hallId
             );
         }

@@ -3,6 +3,8 @@ package com.abhishek.eventbooking.service;
 import com.abhishek.eventbooking.dto.request.EventSeatGenerationRequest;
 import com.abhishek.eventbooking.dto.response.EventSeatResponse;
 import com.abhishek.eventbooking.entity.*;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.SeatRepository;
@@ -28,13 +30,13 @@ public class EventSeatService {
 
         Event event = eventRepository.findById(eventId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Event not found with id: " + eventId
                         )
                 );
 
         if (event.getStatus() == EventStatus.CANCELLED) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Cannot generate seats for a cancelled event"
             );
         }
@@ -45,13 +47,13 @@ public class EventSeatService {
                         );
 
         if (seats.isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "No seats found for event hall"
             );
         }
 
         if (!eventSeatRepository.findByEventIdOrderBySeatRowNameAscSeatSeatNumberAsc(eventId).isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Event seats have already been generated"
             );
         }
@@ -81,7 +83,7 @@ public class EventSeatService {
     public List<EventSeatResponse> getEventSeats(Long eventId) {
 
         if (!eventRepository.existsById(eventId)) {
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "Event not found with id: " + eventId
             );
         }

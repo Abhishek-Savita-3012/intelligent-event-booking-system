@@ -2,6 +2,7 @@ package com.abhishek.eventbooking.service;
 
 import com.abhishek.eventbooking.dto.response.AdminBookingResponse;
 import com.abhishek.eventbooking.entity.*;
+import com.abhishek.eventbooking.exception.BadRequestException;
 import com.abhishek.eventbooking.repository.BookingRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -73,13 +74,13 @@ public class AdminBookingService {
     private void validatePagination(int page, int size) {
         if (page < 0) {
 
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "Page number cannot be negative"
             );
         }
 
         if (size < 1 || size > 100) {
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "Page size must be between 1 and 100"
             );
         }
@@ -100,7 +101,7 @@ public class AdminBookingService {
                     -> sortBy;
 
             default ->
-                    throw new IllegalArgumentException(
+                    throw new BadRequestException(
                             "Invalid sort field: "
                                     + sortBy
                     );
@@ -117,7 +118,7 @@ public class AdminBookingService {
             return Sort.Direction.ASC;
         }
 
-        throw new IllegalArgumentException(
+        throw new BadRequestException(
                 "Sort direction must be 'asc' or 'desc'"
         );
     }

@@ -4,6 +4,8 @@ import com.abhishek.eventbooking.dto.request.HallRequest;
 import com.abhishek.eventbooking.dto.response.HallResponse;
 import com.abhishek.eventbooking.entity.Hall;
 import com.abhishek.eventbooking.entity.Venue;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.HallRepository;
 import com.abhishek.eventbooking.repository.VenueRepository;
 import org.springframework.stereotype.Service;
@@ -25,7 +27,7 @@ public class HallService {
 
         Venue venue = venueRepository.findById(venueId)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Venue not found with id: " + venueId
                         )
                 );
@@ -33,7 +35,7 @@ public class HallService {
         String hallName = request.getName().trim();
 
         if (hallRepository.existsByVenueIdAndNameIgnoreCase(venueId, hallName)) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Hall already exists in this venue"
             );
         }
@@ -49,7 +51,7 @@ public class HallService {
     public List<HallResponse> getHallsByVenue(Long venueId) {
 
         if (!venueRepository.existsById(venueId)) {
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "Venue not found with id: " + venueId
             );
         }

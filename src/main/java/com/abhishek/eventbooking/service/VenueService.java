@@ -3,6 +3,7 @@ package com.abhishek.eventbooking.service;
 import com.abhishek.eventbooking.dto.request.VenueRequest;
 import com.abhishek.eventbooking.dto.response.VenueResponse;
 import com.abhishek.eventbooking.entity.Venue;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.VenueRepository;
 import org.springframework.stereotype.Service;
 
@@ -43,7 +44,7 @@ public class VenueService {
         Venue venue = venueRepository
                 .findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Venue not found with id: " + id
                         )
                 );
@@ -56,7 +57,7 @@ public class VenueService {
         Venue venue = venueRepository
                 .findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Venue not found with id: " + id
                         )
                 );
@@ -75,7 +76,7 @@ public class VenueService {
         Venue venue = venueRepository
                 .findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Venue not found with id: " + id
                         )
                 );

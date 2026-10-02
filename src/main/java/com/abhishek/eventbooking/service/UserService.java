@@ -2,6 +2,7 @@ package com.abhishek.eventbooking.service;
 
 import com.abhishek.eventbooking.dto.response.UserResponse;
 import com.abhishek.eventbooking.entity.User;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.UserRepository;
 import org.springframework.stereotype.Service;
 
@@ -19,7 +20,7 @@ public class UserService {
         User user = userRepository
                 .findByEmail(email)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "User not found"
                         )
                 );

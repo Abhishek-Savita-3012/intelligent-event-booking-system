@@ -7,6 +7,9 @@ import com.abhishek.eventbooking.entity.EventCategory;
 import com.abhishek.eventbooking.entity.EventStatus;
 import com.abhishek.eventbooking.entity.Hall;
 import com.abhishek.eventbooking.entity.Venue;
+import com.abhishek.eventbooking.exception.BadRequestException;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.HallRepository;
 import org.springframework.stereotype.Service;
@@ -20,10 +23,7 @@ public class EventService {
     private final EventRepository eventRepository;
     private final HallRepository hallRepository;
 
-    public EventService(
-            EventRepository eventRepository,
-            HallRepository hallRepository
-    ) {
+    public EventService(EventRepository eventRepository, HallRepository hallRepository) {
         this.eventRepository = eventRepository;
         this.hallRepository = hallRepository;
     }
@@ -39,7 +39,7 @@ public class EventService {
         Hall hall = hallRepository
                 .findById(request.getHallId())
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Hall not found with id: "
                                         + request.getHallId()
                         )
@@ -71,7 +71,7 @@ public class EventService {
         Event event = eventRepository
                 .findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Event not found with id: " + id
                         )
                 );
@@ -90,15 +90,14 @@ public class EventService {
         Event event = eventRepository
                 .findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Event not found with id: " + id
                         )
                 );
 
-        Hall hall = hallRepository
-                .findById(request.getHallId())
+        Hall hall = hallRepository.findById(request.getHallId())
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Hall not found with id: "
                                         + request.getHallId()
                         )
@@ -129,10 +128,9 @@ public class EventService {
 
     public void cancelEvent(Long id) {
 
-        Event event = eventRepository
-                .findById(id)
+        Event event = eventRepository.findById(id)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Event not found with id: " + id
                         )
                 );
@@ -282,7 +280,7 @@ public class EventService {
                         request.getStartTime()
                 )) {
 
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "End time must be after start time"
             );
         }
@@ -310,7 +308,7 @@ public class EventService {
 
         if (conflict) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Hall already has an event scheduled during this time"
             );
         }
@@ -339,7 +337,7 @@ public class EventService {
 
         if (conflict) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Hall already has an event scheduled during this time"
             );
         }

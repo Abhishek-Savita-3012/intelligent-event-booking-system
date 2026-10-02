@@ -6,6 +6,8 @@ import com.abhishek.eventbooking.dto.response.LoginResponse;
 import com.abhishek.eventbooking.dto.response.UserResponse;
 import com.abhishek.eventbooking.entity.Role;
 import com.abhishek.eventbooking.entity.User;
+import com.abhishek.eventbooking.exception.BadRequestException;
+import com.abhishek.eventbooking.exception.ConflictException;
 import com.abhishek.eventbooking.repository.UserRepository;
 import com.abhishek.eventbooking.security.JwtService;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,7 +31,7 @@ public class AuthService {
         String email = request.getEmail().trim().toLowerCase();
 
         if (userRepository.existsByEmail(email)) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Email is already registered"
             );
         }
@@ -57,13 +59,13 @@ public class AuthService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
-                        new IllegalArgumentException("Invalid email or password")
+                        new BadRequestException("Invalid email or password")
                 );
 
         boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPassword());
 
         if (!passwordMatches) {
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "Invalid email or password"
             );
         }

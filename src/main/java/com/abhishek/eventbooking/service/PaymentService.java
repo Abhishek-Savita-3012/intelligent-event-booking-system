@@ -3,6 +3,9 @@ package com.abhishek.eventbooking.service;
 import com.abhishek.eventbooking.dto.request.PaymentSimulationRequest;
 import com.abhishek.eventbooking.dto.response.PaymentResponse;
 import com.abhishek.eventbooking.entity.*;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ForbiddenOperationException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.BookingRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.PaymentRepository;
@@ -47,7 +50,7 @@ public class PaymentService {
          */
         Booking booking = bookingRepository.findByBookingReferenceForUpdate(bookingReference)
                         .orElseThrow(() ->
-                                new IllegalArgumentException(
+                                new ResourceNotFoundException(
                                         "Booking not found: "
                                                 + bookingReference
                                 )
@@ -64,19 +67,14 @@ public class PaymentService {
         String message;
 
         if (request.getOutcome() == PaymentOutcome.SUCCESS) {
-
             handleSuccessfulPayment(booking, eventSeats);
-
             paymentStatus = PaymentStatus.SUCCESS;
-
             message = "Payment successful and booking confirmed";
 
         } else {
 
             handleFailedPayment(booking, eventSeats);
-
             paymentStatus = PaymentStatus.FAILED;
-
             message = "Payment failed and reserved seats were released";
         }
 
@@ -88,9 +86,7 @@ public class PaymentService {
                         .build();
 
         Payment savedPayment = paymentRepository.save(payment);
-
         bookingRepository.save(booking);
-
         eventSeatRepository.saveAll(eventSeats);
 
         return mapToResponse(savedPayment, booking, message);
@@ -100,7 +96,7 @@ public class PaymentService {
 
         if (!booking.getUser().getEmail().equalsIgnoreCase(email)) {
 
-            throw new IllegalArgumentException(
+            throw new ForbiddenOperationException(
                     "You are not allowed to pay for this booking"
             );
         }
@@ -110,35 +106,35 @@ public class PaymentService {
 
         if (booking.getStatus() == BookingStatus.EXPIRED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking reservation has expired"
             );
         }
 
         if (booking.getStatus() == BookingStatus.CONFIRMED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking is already confirmed"
             );
         }
 
         if (booking.getStatus() == BookingStatus.FAILED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking payment has already failed"
             );
         }
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Cancelled booking cannot be paid"
             );
         }
 
         if (booking.getStatus() != BookingStatus.PENDING) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking is not eligible for payment"
             );
         }
@@ -147,7 +143,7 @@ public class PaymentService {
 
         if (booking.getExpiresAt() == null || !booking.getExpiresAt().isAfter(now)) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking reservation has expired"
             );
         }
@@ -157,7 +153,7 @@ public class PaymentService {
 
         if (eventSeats.isEmpty()) {
 
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "No active seat reservation found for this booking"
             );
         }
@@ -180,7 +176,7 @@ public class PaymentService {
 
         if (invalidReservation) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Seat reservation is no longer valid"
             );
         }
@@ -191,11 +187,8 @@ public class PaymentService {
         booking.setStatus(BookingStatus.CONFIRMED);
 
         for (EventSeat eventSeat : eventSeats) {
-
             eventSeat.setStatus(EventSeatStatus.BOOKED);
-
             eventSeat.setLockedByBooking(null);
-
             eventSeat.setLockedUntil(null);
         }
     }
@@ -205,11 +198,8 @@ public class PaymentService {
         booking.setStatus(BookingStatus.FAILED);
 
         for (EventSeat eventSeat : eventSeats) {
-
             eventSeat.setStatus(EventSeatStatus.AVAILABLE);
-
             eventSeat.setLockedByBooking(null);
-
             eventSeat.setLockedUntil(null);
         }
     }

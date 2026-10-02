@@ -3,6 +3,9 @@ package com.abhishek.eventbooking.service;
 import com.abhishek.eventbooking.dto.request.RefundSimulationRequest;
 import com.abhishek.eventbooking.dto.response.RefundResponse;
 import com.abhishek.eventbooking.entity.*;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ForbiddenOperationException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.BookingRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.PaymentRepository;
@@ -50,7 +53,7 @@ public class BookingCancellationService {
 
         Booking booking = bookingRepository.findByBookingReferenceForUpdate(bookingReference)
                         .orElseThrow(() ->
-                                new IllegalArgumentException(
+                                new ResourceNotFoundException(
                                         "Booking not found: "
                                                 + bookingReference
                                 )
@@ -62,7 +65,7 @@ public class BookingCancellationService {
 
         if (refundRepository.existsByBookingIdAndStatus(booking.getId(), RefundStatus.SUCCESS)) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking has already been refunded"
             );
         }
@@ -70,7 +73,7 @@ public class BookingCancellationService {
         Payment successfulPayment = paymentRepository
                         .findTopByBookingIdAndStatusOrderByCreatedAtDesc(booking.getId(), PaymentStatus.SUCCESS)
                         .orElseThrow(() ->
-                                new IllegalArgumentException(
+                                new ResourceNotFoundException(
                                         "Successful payment record not found"
                                 )
                         );
@@ -86,9 +89,7 @@ public class BookingCancellationService {
         if (request.getOutcome() == RefundOutcome.FAILED) {
 
             refund = createRefund(booking, successfulPayment, RefundStatus.FAILED);
-
             refund = refundRepository.save(refund);
-
             message = "Refund failed. Booking remains confirmed.";
 
             return mapToResponse(refund, booking, successfulPayment, message);
@@ -112,11 +113,8 @@ public class BookingCancellationService {
         refund = createRefund(booking, successfulPayment, RefundStatus.SUCCESS);
 
         Refund savedRefund = refundRepository.save(refund);
-
         bookingRepository.save(booking);
-
         eventSeatRepository.saveAll(eventSeats);
-
         message = "Booking cancelled successfully and refund completed";
 
         return mapToResponse(savedRefund, booking, successfulPayment, message);
@@ -126,7 +124,7 @@ public class BookingCancellationService {
 
         if (!booking.getUser().getEmail().equalsIgnoreCase(email)) {
 
-            throw new IllegalArgumentException(
+            throw new ForbiddenOperationException(
                     "You are not allowed to cancel this booking"
             );
         }
@@ -136,42 +134,42 @@ public class BookingCancellationService {
 
         if (booking.getStatus() == BookingStatus.CANCELLED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking is already cancelled"
             );
         }
 
         if (booking.getStatus() == BookingStatus.EXPIRED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Expired booking cannot be cancelled"
             );
         }
 
         if (booking.getStatus() == BookingStatus.FAILED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Failed booking cannot be cancelled"
             );
         }
 
         if (booking.getStatus() == BookingStatus.PENDING) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Pending booking cannot be cancelled through refund flow"
             );
         }
 
         if (booking.getStatus() != BookingStatus.CONFIRMED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Only confirmed bookings can be cancelled"
             );
         }
 
         if (!booking.getEvent().getStartTime().isAfter(LocalDateTime.now())) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Booking cannot be cancelled after the event has started"
             );
         }
@@ -180,7 +178,7 @@ public class BookingCancellationService {
     private void validateBookedSeats(List<EventSeat> eventSeats) {
 
         if (eventSeats.isEmpty()) {
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "No seats found for this booking"
             );
         }
@@ -191,7 +189,7 @@ public class BookingCancellationService {
                         );
 
         if (invalidSeat) {
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "One or more booking seats are not in BOOKED state"
             );
         }

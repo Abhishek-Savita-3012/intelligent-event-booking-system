@@ -5,6 +5,10 @@ import com.abhishek.eventbooking.dto.response.BookingHistoryResponse;
 import com.abhishek.eventbooking.dto.response.BookingResponse;
 import com.abhishek.eventbooking.dto.response.BookingSeatResponse;
 import com.abhishek.eventbooking.entity.*;
+import com.abhishek.eventbooking.exception.BadRequestException;
+import com.abhishek.eventbooking.exception.ConflictException;
+import com.abhishek.eventbooking.exception.ForbiddenOperationException;
+import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,14 +57,14 @@ public class BookingService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "User not found"
                         )
                 );
 
         Event event = eventRepository.findById(request.getEventId())
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "Event not found with id: "
                                         + request.getEventId()
                         )
@@ -174,14 +178,14 @@ public class BookingService {
 
         if (event.getStatus() == EventStatus.CANCELLED) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Cannot book seats for a cancelled event"
             );
         }
 
         if (!event.getStartTime().isAfter(LocalDateTime.now())) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "Cannot book seats for an event that has already started"
             );
         }
@@ -193,7 +197,7 @@ public class BookingService {
 
         if (uniqueIds.size() != eventSeatIds.size()) {
 
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "Duplicate event seat ids are not allowed"
             );
         }
@@ -203,7 +207,7 @@ public class BookingService {
 
         if (eventSeats.size() != requestedIds.size()) {
 
-            throw new IllegalArgumentException(
+            throw new ResourceNotFoundException(
                     "One or more selected event seats do not exist"
             );
         }
@@ -222,7 +226,7 @@ public class BookingService {
 
         if (invalidSeat) {
 
-            throw new IllegalArgumentException(
+            throw new BadRequestException(
                     "One or more selected seats do not belong to this event"
             );
         }
@@ -238,7 +242,7 @@ public class BookingService {
 
         if (unavailable) {
 
-            throw new IllegalArgumentException(
+            throw new ConflictException(
                     "One or more selected seats are not available"
             );
         }
@@ -265,7 +269,7 @@ public class BookingService {
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
-                        new IllegalArgumentException(
+                        new ResourceNotFoundException(
                                 "User not found"
                         )
                 );
@@ -301,7 +305,7 @@ public class BookingService {
 
         Booking booking = bookingRepository.findByBookingReference(bookingReference)
                         .orElseThrow(() ->
-                                new IllegalArgumentException(
+                                new ResourceNotFoundException(
                                         "Booking not found: "
                                                 + bookingReference
                                 )
@@ -321,7 +325,7 @@ public class BookingService {
     private void validateBookingOwner(Booking booking, String email) {
 
         if (!booking.getUser().getEmail().equalsIgnoreCase(email)) {
-            throw new IllegalArgumentException(
+            throw new ForbiddenOperationException(
                     "You are not allowed to access this booking"
             );
         }
