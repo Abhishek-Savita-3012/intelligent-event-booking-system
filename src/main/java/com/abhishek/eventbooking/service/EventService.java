@@ -12,12 +12,14 @@ import com.abhishek.eventbooking.exception.ConflictException;
 import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.HallRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
+@Slf4j
 public class EventService {
 
     private final EventRepository eventRepository;
@@ -58,6 +60,14 @@ public class EventService {
                 .build();
 
         Event savedEvent = eventRepository.save(event);
+
+        log.info(
+                "Event created eventId={} hallId={} startTime={} endTime={}",
+                savedEvent.getId(),
+                hall.getId(),
+                savedEvent.getStartTime(),
+                savedEvent.getEndTime()
+        );
 
         return mapToResponse(savedEvent);
     }
@@ -307,6 +317,13 @@ public class EventService {
                         );
 
         if (conflict) {
+
+            log.warn(
+                    "Event scheduling conflict hallId={} requestedStart={} requestedEnd={}",
+                    hallId,
+                    startTime,
+                    endTime
+            );
 
             throw new ConflictException(
                     "Hall already has an event scheduled during this time"

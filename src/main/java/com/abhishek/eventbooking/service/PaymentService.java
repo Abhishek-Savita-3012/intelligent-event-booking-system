@@ -9,6 +9,7 @@ import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.BookingRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.PaymentRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -17,6 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class PaymentService {
 
     private final PaymentRepository paymentRepository;
@@ -35,6 +37,12 @@ public class PaymentService {
 
     @Transactional
     public PaymentResponse simulatePayment(String email, String bookingReference, PaymentSimulationRequest request) {
+
+        log.info(
+                "Payment simulation started bookingReference={} outcome={}",
+                bookingReference,
+                request.getOutcome()
+        );
 
         /*
          * Lock the EventSeat rows first.
@@ -76,6 +84,13 @@ public class PaymentService {
             handleFailedPayment(booking, eventSeats);
             paymentStatus = PaymentStatus.FAILED;
             message = "Payment failed and reserved seats were released";
+
+            log.warn(
+                    "Payment failed bookingReference={} amount={} seatsReleased={}",
+                    booking.getBookingReference(),
+                    booking.getTotalAmount(),
+                    eventSeats.size()
+            );
         }
 
         Payment payment = Payment.builder()
@@ -89,12 +104,25 @@ public class PaymentService {
         bookingRepository.save(booking);
         eventSeatRepository.saveAll(eventSeats);
 
+        log.info(
+                "Payment successful bookingReference={} paymentReference={} amount={} seatCount={}",
+                booking.getBookingReference(),
+                savedPayment.getPaymentReference(),
+                savedPayment.getAmount(),
+                eventSeats.size()
+        );
+
         return mapToResponse(savedPayment, booking, message);
     }
 
     private void validateBookingOwner(Booking booking, String email) {
 
         if (!booking.getUser().getEmail().equalsIgnoreCase(email)) {
+
+            log.warn(
+                    "Booking ownership check failed bookingReference={}",
+                    booking.getBookingReference()
+            );
 
             throw new ForbiddenOperationException(
                     "You are not allowed to pay for this booking"
@@ -105,6 +133,12 @@ public class PaymentService {
     private void validateBookingForPayment(Booking booking) {
 
         if (booking.getStatus() == BookingStatus.EXPIRED) {
+
+            log.warn(
+                    "Payment rejected because booking expired bookingReference={} expiresAt={}",
+                    booking.getBookingReference(),
+                    booking.getExpiresAt()
+            );
 
             throw new ConflictException(
                     "Booking reservation has expired"

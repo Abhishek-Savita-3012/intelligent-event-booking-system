@@ -4,6 +4,7 @@ import com.abhishek.eventbooking.dto.response.ApiErrorResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataIntegrityViolationException;
 
 import org.springframework.http.HttpStatus;
@@ -24,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 @RestControllerAdvice
+@Slf4j
 public class GlobalExceptionHandler {
 
     // ========================================
@@ -183,6 +185,13 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiErrorResponse> handleGenericException(Exception ex, HttpServletRequest request) {
+
+        log.error(
+                "Unexpected server error method={} path={}",
+                request.getMethod(),
+                request.getRequestURI(),
+                ex
+        );
 
         return buildErrorResponse(
                 HttpStatus.INTERNAL_SERVER_ERROR,

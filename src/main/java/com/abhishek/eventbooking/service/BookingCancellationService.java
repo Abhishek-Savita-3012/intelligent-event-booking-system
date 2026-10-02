@@ -10,6 +10,7 @@ import com.abhishek.eventbooking.repository.BookingRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.PaymentRepository;
 import com.abhishek.eventbooking.repository.RefundRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class BookingCancellationService {
 
     private final EventSeatRepository eventSeatRepository;
@@ -39,6 +41,12 @@ public class BookingCancellationService {
 
     @Transactional
     public RefundResponse cancelBooking(String email, String bookingReference, RefundSimulationRequest request) {
+
+        log.info(
+                "Cancellation started bookingReference={} refundOutcome={}",
+                bookingReference,
+                request.getOutcome()
+        );
 
         /*
          * Keep the lock order consistent with
@@ -92,6 +100,13 @@ public class BookingCancellationService {
             refund = refundRepository.save(refund);
             message = "Refund failed. Booking remains confirmed.";
 
+            log.warn(
+                    "Refund failed bookingReference={} refundReference={} amount={}",
+                    booking.getBookingReference(),
+                    refund.getRefundReference(),
+                    refund.getAmount()
+            );
+
             return mapToResponse(refund, booking, successfulPayment, message);
         }
 
@@ -117,12 +132,25 @@ public class BookingCancellationService {
         eventSeatRepository.saveAll(eventSeats);
         message = "Booking cancelled successfully and refund completed";
 
+        log.info(
+                "Booking cancelled bookingReference={} refundReference={} refundAmount={} releasedSeatCount={}",
+                booking.getBookingReference(),
+                savedRefund.getRefundReference(),
+                savedRefund.getAmount(),
+                eventSeats.size()
+        );
+
         return mapToResponse(savedRefund, booking, successfulPayment, message);
     }
 
     private void validateBookingOwner(Booking booking, String email) {
 
         if (!booking.getUser().getEmail().equalsIgnoreCase(email)) {
+
+            log.warn(
+                    "Booking ownership check failed bookingReference={}",
+                    booking.getBookingReference()
+            );
 
             throw new ForbiddenOperationException(
                     "You are not allowed to cancel this booking"

@@ -8,12 +8,14 @@ import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.SeatRepository;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.List;
 
 @Service
+@Slf4j
 public class EventSeatService {
 
     private final EventRepository eventRepository;
@@ -73,6 +75,12 @@ public class EventSeatService {
                         .toList();
 
         List<EventSeat> savedEventSeats = eventSeatRepository.saveAll(eventSeats);
+
+        log.info(
+                "EventSeat inventory generated eventId={} seatCount={}",
+                event.getId(),
+                eventSeats.size()
+        );
 
         return savedEventSeats
                 .stream()

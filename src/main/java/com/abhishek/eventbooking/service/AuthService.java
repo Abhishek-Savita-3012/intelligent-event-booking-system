@@ -10,10 +10,12 @@ import com.abhishek.eventbooking.exception.BadRequestException;
 import com.abhishek.eventbooking.exception.ConflictException;
 import com.abhishek.eventbooking.repository.UserRepository;
 import com.abhishek.eventbooking.security.JwtService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 @Service
+@Slf4j
 public class AuthService {
 
     private final UserRepository userRepository;
@@ -45,6 +47,11 @@ public class AuthService {
 
         User savedUser = userRepository.save(user);
 
+        log.info(
+                "User registration completed userId={}",
+                savedUser.getId()
+        );
+
         return UserResponse.builder()
                 .id(savedUser.getId())
                 .name(savedUser.getName())
@@ -65,6 +72,11 @@ public class AuthService {
         boolean passwordMatches = passwordEncoder.matches(request.getPassword(), user.getPassword());
 
         if (!passwordMatches) {
+
+            log.warn(
+                    "Login failed"
+            );
+
             throw new BadRequestException(
                     "Invalid email or password"
             );

@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Value;
 import com.abhishek.eventbooking.dto.response.BookingDetailsResponse;
 import com.abhishek.eventbooking.dto.response.BookingDetailsSeatResponse;
 import com.abhishek.eventbooking.entity.Payment;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -25,6 +26,7 @@ import java.util.Set;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class BookingService {
 
     private final BookingRepository bookingRepository;
@@ -54,6 +56,12 @@ public class BookingService {
 
     @Transactional
     public BookingResponse createBooking(String email, BookingRequest request) {
+
+        log.info(
+                "Booking creation started eventId={} requestedSeatCount={}",
+                request.getEventId(),
+                request.getEventSeatIds().size()
+        );
 
         User user = userRepository.findByEmail(email)
                 .orElseThrow(() ->
@@ -143,6 +151,15 @@ public class BookingService {
 
         eventSeatRepository.saveAll(eventSeats);
 
+        log.info(
+                "Booking created bookingReference={} eventId={} seatCount={} totalAmount={} expiresAt={}",
+                savedBooking.getBookingReference(),
+                event.getId(),
+                eventSeats.size(),
+                savedBooking.getTotalAmount(),
+                savedBooking.getExpiresAt()
+        );
+
         return mapToResponse(savedBooking, bookingSeats);
     }
 
@@ -159,6 +176,13 @@ public class BookingService {
             ) {
 
                 Booking oldBooking = eventSeat.getLockedByBooking();
+
+                log.info(
+                        "Lazy cleanup releasing expired seat lock eventSeatId={} oldBookingId={} lockedUntil={}",
+                        eventSeat.getId(),
+                        oldBooking != null ? oldBooking.getId() : null,
+                        eventSeat.getLockedUntil()
+                );
 
                 eventSeat.setStatus(EventSeatStatus.AVAILABLE);
                 eventSeat.setLockedUntil(null);
@@ -206,6 +230,13 @@ public class BookingService {
     private void validateAllSeatsFound(List<EventSeat> eventSeats, List<Long> requestedIds) {
 
         if (eventSeats.size() != requestedIds.size()) {
+
+            log.warn(
+                    "Booking rejected because one or more EventSeats are unavailable eventSeatIds={}",
+                    eventSeats.stream()
+                            .map(EventSeat::getId)
+                            .toList()
+            );
 
             throw new ResourceNotFoundException(
                     "One or more selected event seats do not exist"
