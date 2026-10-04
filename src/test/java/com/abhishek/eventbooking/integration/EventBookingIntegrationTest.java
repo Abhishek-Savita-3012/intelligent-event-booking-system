@@ -623,4 +623,76 @@ class EventBookingIntegrationTest {
                         )
                 );
     }
+
+    @Test
+    void eventAnalytics_withAdminJwt_shouldReturn200() throws Exception {
+
+        String adminToken = registerAndLoginAdmin("analytics-admin@example.com");
+
+        mockMvc.perform(
+                        get(
+                                "/api/admin/events/"
+                                        + eventId
+                                        + "/analytics"
+                        )
+                                .header(
+                                        "Authorization",
+                                        "Bearer "
+                                                + adminToken
+                                )
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.eventId").value(eventId))
+
+                .andExpect(jsonPath("$.totalSeats").value(1))
+
+                .andExpect(jsonPath("$.availableSeats").value(1))
+
+                .andExpect(jsonPath("$.lockedSeats").value(0))
+
+                .andExpect(jsonPath("$.bookedSeats").value(0))
+
+                .andExpect(jsonPath("$.occupancyPercentage").value(0.00))
+
+                .andExpect(jsonPath("$.grossTicketSales").value(0.00))
+
+                .andExpect(jsonPath("$.netRevenue").value(0.00));
+    }
+
+    @Test
+    void eventAnalytics_withUserJwt_shouldReturn403() throws Exception {
+
+        String token = registerAndLoginUser("analytics-user@example.com");
+
+        mockMvc.perform(
+                        get(
+                                "/api/admin/events/"
+                                        + eventId
+                                        + "/analytics"
+                        )
+                                .header(
+                                        "Authorization",
+                                        "Bearer "
+                                                + token
+                                )
+                )
+
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void eventAnalytics_withoutJwt_shouldReturn401() throws Exception {
+
+        mockMvc.perform(
+                        get(
+                                "/api/admin/events/"
+                                        + eventId
+                                        + "/analytics"
+                        )
+                )
+
+                .andExpect(status().isUnauthorized());
+    }
 }

@@ -42,4 +42,18 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
             @Param("status")
             PaymentStatus status
     );
+
+    @Query("""
+        SELECT COALESCE(SUM(p.amount), 0)
+        FROM Payment p
+        WHERE p.booking.event.id = :eventId
+        AND p.status = :status
+        """)
+    BigDecimal sumAmountByEventIdAndStatus(
+            @Param("eventId")
+            Long eventId,
+
+            @Param("status")
+            PaymentStatus status
+    );
 }

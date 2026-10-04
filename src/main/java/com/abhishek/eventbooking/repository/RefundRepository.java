@@ -38,4 +38,18 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
             @Param("status")
             RefundStatus status
     );
+
+    @Query("""
+        SELECT COALESCE(SUM(r.amount), 0)
+        FROM Refund r
+        WHERE r.booking.event.id = :eventId
+        AND r.status = :status
+        """)
+    BigDecimal sumAmountByEventIdAndStatus(
+            @Param("eventId")
+            Long eventId,
+
+            @Param("status")
+            RefundStatus status
+    );
 }

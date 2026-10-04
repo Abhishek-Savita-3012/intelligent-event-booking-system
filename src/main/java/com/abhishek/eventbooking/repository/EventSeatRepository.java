@@ -80,4 +80,8 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
             @Param("bookingReference")
             String bookingReference
     );
+
+    long countByEvent_Id(Long eventId);
+
+    long countByEvent_IdAndStatus(Long eventId, EventSeatStatus status);
 }
