@@ -29,7 +29,12 @@ public class BookingExpirationService {
         this.bookingRepository = bookingRepository;
     }
 
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(
+            fixedRateString =
+                    "${booking.expiration-scan-ms:30000}",
+            initialDelayString =
+                    "${booking.expiration-initial-delay-ms:30000}"
+    )
     @Transactional
     public void releaseExpiredSeatLocks() {
 
