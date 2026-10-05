@@ -20,17 +20,20 @@ import org.springframework.boot.test.context.SpringBootTest;
 
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 
-import org.springframework.test.context.ActiveProfiles;
+import org.springframework.jdbc.core.JdbcTemplate;
 
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
+import org.springframework.test.context.ActiveProfiles;
 
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
 import org.testcontainers.mysql.MySQLContainer;
 
 import java.math.BigDecimal;
+
 import java.time.LocalDateTime;
 
 import java.util.List;
@@ -40,30 +43,47 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @ActiveProfiles("mysql-test")
 @Testcontainers
-class MySqlBookingConcurrencyIntegrationTest {
+class MySQLBookingConcurrencyIntegrationTest {
+
+    // =========================================================
+    // REAL MYSQL CONTAINER
+    // =========================================================
 
     @Container
     @ServiceConnection
-    static final MySQLContainer mysql =
-            new MySQLContainer("mysql:8.4")
-                    .withDatabaseName("event_booking_test")
-                    .withUsername("testuser")
-                    .withPassword("testpass");
+    static final MySQLContainer MYSQL =
+            new MySQLContainer(
+                    "mysql:8.4"
+            )
+                    .withDatabaseName(
+                            "event_booking_test"
+                    )
+                    .withUsername(
+                            "testuser"
+                    )
+                    .withPassword(
+                            "testpass"
+                    );
+
+
+    // =========================================================
+    // SERVICES
+    // =========================================================
 
     @Autowired
     private BookingService bookingService;
 
-    @Autowired
-    private PlatformTransactionManager transactionManager;
 
-    @Autowired
-    private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    // =========================================================
+    // REPOSITORIES
+    // =========================================================
 
     @Autowired
     private UserRepository userRepository;
@@ -95,258 +115,716 @@ class MySqlBookingConcurrencyIntegrationTest {
     @Autowired
     private RefundRepository refundRepository;
 
+
+    // =========================================================
+    // TRANSACTION / JDBC
+    // =========================================================
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+
+    // =========================================================
+    // TEST DATA
+    // =========================================================
+
     private User userA;
+
     private User userB;
+
+    private Venue venue;
+
+    private Hall hall;
+
+    private Seat physicalSeat;
+
     private Event event;
+
     private EventSeat eventSeat;
 
+
+    // =========================================================
+    // SETUP
+    // =========================================================
+
     @BeforeEach
-    void cleanAndPrepareDatabase() {
+    void setUp() {
 
         /*
-         * Delete child tables before parent tables
-         * because of foreign keys.
+         * IMPORTANT:
+         *
+         * This test class intentionally does NOT use
+         * class-level @Transactional.
+         *
+         * The worker threads need to see committed rows
+         * created during setup.
          */
 
-        refundRepository.deleteAll();
-        paymentRepository.deleteAll();
-        bookingSeatRepository.deleteAll();
-        eventSeatRepository.deleteAll();
-        bookingRepository.deleteAll();
-        eventRepository.deleteAll();
-        seatRepository.deleteAll();
-        hallRepository.deleteAll();
-        venueRepository.deleteAll();
-        userRepository.deleteAll();
-        prepareTestData();
-    }
 
-    private void prepareTestData() {
+        // =====================================================
+        // CLEAN DATABASE
+        //
+        // Delete children before parents because of FKs.
+        // =====================================================
 
-        userA = User.builder()
-                .name("Concurrent User A")
-                .email("usera@example.com")
-                .password("not-used-in-this-test")
-                .role(Role.USER)
-                .build();
+        refundRepository.deleteAllInBatch();
 
-        userA = userRepository.saveAndFlush(userA);
+        paymentRepository.deleteAllInBatch();
 
-        userB = User.builder()
-                .name("Concurrent User B")
-                .email("userb@example.com")
-                .password("not-used-in-this-test")
-                .role(Role.USER)
-                .build();
+        bookingSeatRepository.deleteAllInBatch();
 
-        userB = userRepository.saveAndFlush(userB);
+        /*
+         * EventSeat has locked_by_booking FK, therefore
+         * remove EventSeats before Bookings.
+         */
+        eventSeatRepository.deleteAllInBatch();
 
-        Venue venue = Venue.builder()
-                .name("Concurrency Test Venue")
-                .city("Lucknow")
-                .address("Integration Test Address")
-                .build();
+        bookingRepository.deleteAllInBatch();
 
-        venue = venueRepository.saveAndFlush(venue);
+        eventRepository.deleteAllInBatch();
 
-        Hall hall = Hall.builder()
-                .name("Screen 1")
-                .venue(venue)
-                .build();
+        seatRepository.deleteAllInBatch();
 
-        hall = hallRepository.saveAndFlush(hall);
+        hallRepository.deleteAllInBatch();
 
-        Seat seat = Seat.builder()
-                .hall(hall)
-                .rowName("A")
-                .seatNumber(1)
-                .seatType(SeatType.REGULAR)
-                .build();
+        venueRepository.deleteAllInBatch();
 
-        seat = seatRepository.saveAndFlush(seat);
+        userRepository.deleteAllInBatch();
+
+
+        // =====================================================
+        // USER A
+        // =====================================================
+
+        userA =
+                userRepository.saveAndFlush(
+                        User.builder()
+                                .name(
+                                        "Concurrency User A"
+                                )
+                                .email(
+                                        "mysql-user-a@example.com"
+                                )
+                                .password(
+                                        "dummy-password"
+                                )
+                                .role(
+                                        Role.USER
+                                )
+                                .build()
+                );
+
+
+        // =====================================================
+        // USER B
+        // =====================================================
+
+        userB =
+                userRepository.saveAndFlush(
+                        User.builder()
+                                .name(
+                                        "Concurrency User B"
+                                )
+                                .email(
+                                        "mysql-user-b@example.com"
+                                )
+                                .password(
+                                        "dummy-password"
+                                )
+                                .role(
+                                        Role.USER
+                                )
+                                .build()
+                );
+
+
+        // =====================================================
+        // VENUE
+        // =====================================================
+
+        venue =
+                venueRepository.saveAndFlush(
+                        Venue.builder()
+                                .name(
+                                        "MySQL Test Venue"
+                                )
+                                .city(
+                                        "Lucknow"
+                                )
+                                .address(
+                                        "Test Address"
+                                )
+                                .build()
+                );
+
+
+        // =====================================================
+        // HALL
+        // =====================================================
+
+        hall =
+                hallRepository.saveAndFlush(
+                        Hall.builder()
+                                .name(
+                                        "Screen 1"
+                                )
+                                .venue(
+                                        venue
+                                )
+                                .build()
+                );
+
+
+        // =====================================================
+        // PHYSICAL SEAT
+        // =====================================================
+
+        physicalSeat =
+                seatRepository.saveAndFlush(
+                        Seat.builder()
+                                .hall(
+                                        hall
+                                )
+                                .rowName(
+                                        "A"
+                                )
+                                .seatNumber(
+                                        1
+                                )
+                                .seatType(
+                                        SeatType.REGULAR
+                                )
+                                .build()
+                );
+
+
+        // =====================================================
+        // EVENT
+        // =====================================================
 
         event =
-                Event.builder()
-                        .name("Concurrency Test Movie")
-                        .description("Used for real MySQL locking test")
-                        .category(EventCategory.MOVIE)
-                        .hall(hall)
-                        .startTime(LocalDateTime.now().plusDays(5))
-                        .endTime(LocalDateTime.now().plusDays(5).plusHours(3))
-                        .status(EventStatus.UPCOMING)
-                        .build();
+                eventRepository.saveAndFlush(
+                        Event.builder()
+                                .name(
+                                        "MySQL Concurrency Movie"
+                                )
+                                .description(
+                                        "Real MySQL concurrency test event"
+                                )
+                                .category(
+                                        EventCategory.MOVIE
+                                )
+                                .startTime(
+                                        LocalDateTime.now()
+                                                .plusDays(2)
+                                )
+                                .endTime(
+                                        LocalDateTime.now()
+                                                .plusDays(2)
+                                                .plusHours(3)
+                                )
+                                .status(
+                                        EventStatus.UPCOMING
+                                )
+                                .hall(
+                                        hall
+                                )
+                                .build()
+                );
 
-        event = eventRepository.saveAndFlush(event);
 
-        eventSeat = EventSeat.builder()
-                .event(event)
-                .seat(seat)
-                .price(new BigDecimal("250.00"))
-                .status(EventSeatStatus.AVAILABLE)
-                .build();
+        // =====================================================
+        // EVENT SEAT
+        // =====================================================
 
-        eventSeat = eventSeatRepository.saveAndFlush(eventSeat);
+        eventSeat =
+                eventSeatRepository.saveAndFlush(
+                        EventSeat.builder()
+                                .event(
+                                        event
+                                )
+                                .seat(
+                                        physicalSeat
+                                )
+                                .price(
+                                        new BigDecimal(
+                                                "250.00"
+                                        )
+                                )
+                                .status(
+                                        EventSeatStatus.AVAILABLE
+                                )
+                                .build()
+                );
     }
 
-    private record BookingAttemptResult(boolean success, String bookingReference, String errorMessage) {
 
-        static BookingAttemptResult success(String bookingReference) {
+    // =========================================================
+    // TEST 1
+    //
+    // TWO DIFFERENT USERS
+    // SAME SEAT
+    //
+    // EXACTLY ONE SHOULD WIN
+    // =========================================================
 
-            return new BookingAttemptResult(true, bookingReference, null);
+    @Test
+    void twoDifferentUsersBookingSameSeatConcurrently_shouldAllowOnlyOneBooking()
+            throws Exception {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(
+                        2
+                );
+
+
+        CountDownLatch ready =
+                new CountDownLatch(
+                        2
+                );
+
+
+        CountDownLatch start =
+                new CountDownLatch(
+                        1
+                );
+
+
+        Callable<BookingAttemptResult> userATask =
+                createBookingAttempt(
+                        userA.getEmail(),
+                        "mysql-user-a-booking-001",
+                        ready,
+                        start
+                );
+
+
+        Callable<BookingAttemptResult> userBTask =
+                createBookingAttempt(
+                        userB.getEmail(),
+                        "mysql-user-b-booking-001",
+                        ready,
+                        start
+                );
+
+
+        Future<BookingAttemptResult> futureA =
+                executor.submit(
+                        userATask
+                );
+
+
+        Future<BookingAttemptResult> futureB =
+                executor.submit(
+                        userBTask
+                );
+
+
+        try {
+
+            /*
+             * Ensure both worker threads have reached
+             * the starting gate.
+             */
+            assertTrue(
+                    ready.await(
+                            10,
+                            TimeUnit.SECONDS
+                    ),
+                    "Both booking threads did not become ready in time"
+            );
+
+
+            /*
+             * Release both threads at almost the same time.
+             */
+            start.countDown();
+
+
+            BookingAttemptResult resultA =
+                    futureA.get(
+                            20,
+                            TimeUnit.SECONDS
+                    );
+
+
+            BookingAttemptResult resultB =
+                    futureB.get(
+                            20,
+                            TimeUnit.SECONDS
+                    );
+
+
+            long successCount =
+                    List.of(
+                                    resultA,
+                                    resultB
+                            )
+                            .stream()
+                            .filter(
+                                    BookingAttemptResult::success
+                            )
+                            .count();
+
+
+            long conflictCount =
+                    List.of(
+                                    resultA,
+                                    resultB
+                            )
+                            .stream()
+                            .filter(
+                                    result ->
+                                            !result.success()
+                            )
+                            .count();
+
+
+            assertEquals(
+                    1,
+                    successCount,
+                    "Exactly one booking should succeed"
+            );
+
+
+            assertEquals(
+                    1,
+                    conflictCount,
+                    "Exactly one booking should fail with a conflict"
+            );
+
+
+            BookingAttemptResult failedResult =
+                    resultA.success()
+                            ? resultB
+                            : resultA;
+
+
+            assertNotNull(
+                    failedResult.errorMessage()
+            );
+
+
+            assertTrue(
+                    failedResult
+                            .errorMessage()
+                            .toLowerCase()
+                            .contains(
+                                    "not available"
+                            )
+                            ||
+                            failedResult
+                                    .errorMessage()
+                                    .toLowerCase()
+                                    .contains(
+                                            "unavailable"
+                                    )
+            );
+
+
+            // =================================================
+            // DATABASE ASSERTIONS
+            // =================================================
+
+            assertEquals(
+                    1,
+                    bookingRepository.count()
+            );
+
+
+            assertEquals(
+                    1,
+                    bookingSeatRepository.count()
+            );
+
+
+            EventSeat updatedSeat =
+                    eventSeatRepository
+                            .findById(
+                                    eventSeat.getId()
+                            )
+                            .orElseThrow();
+
+
+            assertEquals(
+                    EventSeatStatus.LOCKED,
+                    updatedSeat.getStatus()
+            );
+
+
+            assertNotNull(
+                    updatedSeat.getLockedByBooking()
+            );
+
+
+            assertNotNull(
+                    updatedSeat.getLockedUntil()
+            );
+
+        } finally {
+
+            executor.shutdownNow();
+
+            executor.awaitTermination(
+                    5,
+                    TimeUnit.SECONDS
+            );
         }
+    }
 
-        static BookingAttemptResult conflict(String errorMessage) {
 
-            return new BookingAttemptResult(false, null, errorMessage);
+    // =========================================================
+    // TEST 2
+    //
+    // SAME USER
+    // SAME IDEMPOTENCY KEY
+    // SAME REQUEST
+    //
+    // BOTH CALLS SHOULD RETURN SAME BOOKING
+    // =========================================================
+
+    @Test
+    void sameUserSameIdempotencyKeyConcurrently_shouldCreateOnlyOneBooking()
+            throws Exception {
+
+        ExecutorService executor =
+                Executors.newFixedThreadPool(
+                        2
+                );
+
+
+        CountDownLatch ready =
+                new CountDownLatch(
+                        2
+                );
+
+
+        CountDownLatch start =
+                new CountDownLatch(
+                        1
+                );
+
+
+        String idempotencyKey =
+                "mysql-idempotency-retry-001";
+
+
+        Callable<BookingResponse> task =
+                () -> {
+
+                    ready.countDown();
+
+
+                    if (
+                            !start.await(
+                                    10,
+                                    TimeUnit.SECONDS
+                            )
+                    ) {
+
+                        throw new IllegalStateException(
+                                "Start latch timed out"
+                        );
+                    }
+
+
+                    return bookingService
+                            .createBooking(
+                                    userA.getEmail(),
+                                    idempotencyKey,
+                                    createBookingRequest()
+                            );
+                };
+
+
+        Future<BookingResponse> future1 =
+                executor.submit(
+                        task
+                );
+
+
+        Future<BookingResponse> future2 =
+                executor.submit(
+                        task
+                );
+
+
+        try {
+
+            assertTrue(
+                    ready.await(
+                            10,
+                            TimeUnit.SECONDS
+                    ),
+                    "Both idempotency threads did not become ready in time"
+            );
+
+
+            start.countDown();
+
+
+            BookingResponse response1 =
+                    future1.get(
+                            20,
+                            TimeUnit.SECONDS
+                    );
+
+
+            BookingResponse response2 =
+                    future2.get(
+                            20,
+                            TimeUnit.SECONDS
+                    );
+
+
+            // =================================================
+            // SAME BUSINESS RESOURCE
+            // =================================================
+
+            assertNotNull(
+                    response1
+            );
+
+            assertNotNull(
+                    response2
+            );
+
+
+            assertEquals(
+                    response1.getBookingReference(),
+                    response2.getBookingReference(),
+                    "Both retries must return the same Booking"
+            );
+
+
+            // =================================================
+            // ONLY ONE DATABASE BOOKING
+            // =================================================
+
+            assertEquals(
+                    1,
+                    bookingRepository.count()
+            );
+
+
+            assertEquals(
+                    1,
+                    bookingSeatRepository.count()
+            );
+
+
+            // =================================================
+            // VERIFY IDEMPOTENCY DATA
+            // =================================================
+
+            Booking savedBooking =
+                    bookingRepository
+                            .findByUser_IdAndIdempotencyKey(
+                                    userA.getId(),
+                                    idempotencyKey
+                            )
+                            .orElseThrow();
+
+
+            assertEquals(
+                    response1.getBookingReference(),
+                    savedBooking.getBookingReference()
+            );
+
+
+            assertEquals(
+                    idempotencyKey,
+                    savedBooking.getIdempotencyKey()
+            );
+
+
+            assertNotNull(
+                    savedBooking.getRequestFingerprint()
+            );
+
+
+            assertEquals(
+                    64,
+                    savedBooking
+                            .getRequestFingerprint()
+                            .length()
+            );
+
+
+            assertEquals(
+                    BookingStatus.PENDING,
+                    savedBooking.getStatus()
+            );
+
+
+            // =================================================
+            // VERIFY SEAT
+            // =================================================
+
+            EventSeat updatedSeat =
+                    eventSeatRepository
+                            .findById(
+                                    eventSeat.getId()
+                            )
+                            .orElseThrow();
+
+
+            assertEquals(
+                    EventSeatStatus.LOCKED,
+                    updatedSeat.getStatus()
+            );
+
+
+            assertNotNull(
+                    updatedSeat.getLockedByBooking()
+            );
+
+
+            assertEquals(
+                    savedBooking.getId(),
+                    updatedSeat
+                            .getLockedByBooking()
+                            .getId()
+            );
+
+
+            assertNotNull(
+                    updatedSeat.getLockedUntil()
+            );
+
+        } finally {
+
+            executor.shutdownNow();
+
+            executor.awaitTermination(
+                    5,
+                    TimeUnit.SECONDS
+            );
         }
     }
 
-    private BookingRequest createBookingRequest() {
 
-        BookingRequest request = new BookingRequest();
-
-        request.setEventId(event.getId());
-        request.setEventSeatIds(List.of(eventSeat.getId()));
-
-        return request;
-    }
+    // =========================================================
+    // TEST 3
+    //
+    // REAL MYSQL TRANSACTION ROLLBACK
+    // =========================================================
 
     @Test
-    void testDatabase_shouldActuallyBeMySql() {
+    void realMySqlTransaction_whenRuntimeExceptionOccurs_shouldRollbackBooking() {
 
-        String version = jdbcTemplate.queryForObject("SELECT VERSION()", String.class);
+        long beforeCount =
+                bookingRepository.count();
 
-        assertNotNull(version);
 
-        System.out.println("Testcontainers MySQL version: " + version);
-    }
+        TransactionTemplate transactionTemplate =
+                new TransactionTemplate(
+                        transactionManager
+                );
 
-    @Test
-    void twoUsersBookingSameSeatConcurrently_shouldAllowOnlyOneBooking() throws Exception {
-
-        ExecutorService executor = Executors.newFixedThreadPool(2);
-
-        /*
-         * Both worker threads tell us:
-         * "I'm ready."
-         */
-        CountDownLatch ready = new CountDownLatch(2);
-
-        /*
-         * Both threads wait here until
-         * we release them together.
-         */
-        CountDownLatch start = new CountDownLatch(1);
-
-        Callable<BookingAttemptResult> userATask = () -> {
-
-            ready.countDown();
-            start.await();
-
-            try {
-                BookingResponse response = bookingService
-                        .createBooking(
-                                userA.getEmail(),
-                                createBookingRequest()
-                        );
-
-                return BookingAttemptResult.success(response.getBookingReference());
-
-            } catch (ConflictException ex) {
-
-                return BookingAttemptResult
-                        .conflict(ex.getMessage());
-            }
-        };
-
-        Callable<BookingAttemptResult> userBTask = () -> {
-
-            ready.countDown();
-            start.await();
-
-            try {
-                BookingResponse response = bookingService
-                        .createBooking(
-                                userB.getEmail(),
-                                createBookingRequest()
-                        );
-
-                return BookingAttemptResult.success(response.getBookingReference());
-
-            } catch (ConflictException ex) {
-
-                return BookingAttemptResult
-                        .conflict(ex.getMessage());
-            }
-        };
-
-        Future<BookingAttemptResult> futureA = executor.submit(userATask);
-
-        Future<BookingAttemptResult> futureB = executor.submit(userBTask);
-
-        /*
-         * Wait until both threads reached
-         * the starting line.
-         */
-        ready.await();
-
-        /*
-         * GO!
-         */
-        start.countDown();
-
-        BookingAttemptResult resultA = futureA.get();
-
-        BookingAttemptResult resultB = futureB.get();
-
-        executor.shutdown();
-
-        long successCount =
-                List.of(resultA, resultB)
-                        .stream()
-                        .filter(BookingAttemptResult::success)
-                        .count();
-
-        long conflictCount =
-                List.of(resultA, resultB)
-                        .stream()
-                        .filter(result -> !result.success())
-                        .count();
-
-        assertEquals(1, successCount);
-        assertEquals(1, conflictCount);
-
-        BookingAttemptResult failedResult = resultA.success() ? resultB : resultA;
-
-        assertEquals(
-                "One or more selected seats are not available",
-                failedResult.errorMessage()
-        );
-
-        /*
-         * DATABASE INTEGRITY CHECKS
-         */
-
-        assertEquals(1, bookingRepository.count());
-        assertEquals(1, bookingSeatRepository.count());
-
-        EventSeat updatedSeat = eventSeatRepository
-                .findById(eventSeat.getId())
-                .orElseThrow();
-
-        assertEquals(EventSeatStatus.LOCKED, updatedSeat.getStatus());
-
-        assertNotNull(
-                updatedSeat.getLockedUntil()
-        );
-    }
-
-    @Test
-    void realMySqlTransaction_whenRuntimeExceptionOccurs_shouldRollback() throws Exception {
-
-        long before = bookingRepository.count();
-
-        TransactionTemplate transactionTemplate = new TransactionTemplate(transactionManager);
 
         assertThrows(
                 RuntimeException.class,
@@ -355,28 +833,247 @@ class MySqlBookingConcurrencyIntegrationTest {
                                 .executeWithoutResult(
                                         status -> {
 
-                                            Booking booking = Booking.builder()
-                                                    .user(userA)
-                                                    .event(event)
-                                                    .bookingReference("BK-ROLLBACK")
-                                                    .totalAmount(new BigDecimal("250.00"))
-                                                    .status(BookingStatus.PENDING)
-                                                    .createdAt(LocalDateTime.now())
-                                                    .expiresAt(LocalDateTime.now().plusMinutes(5))
-                                                    .build();
+                                            Booking booking =
+                                                    Booking.builder()
 
-                                            bookingRepository.save(booking);
+                                                            .user(
+                                                                    userA
+                                                            )
+
+                                                            .event(
+                                                                    event
+                                                            )
+
+                                                            .bookingReference(
+                                                                    "BK-ROLLBACK"
+                                                            )
+
+                                                            .idempotencyKey(
+                                                                    "rollback-key"
+                                                            )
+
+                                                            .requestFingerprint(
+                                                                    "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+                                                            )
+
+                                                            .totalAmount(
+                                                                    new BigDecimal(
+                                                                            "250.00"
+                                                                    )
+                                                            )
+
+                                                            .status(
+                                                                    BookingStatus.PENDING
+                                                            )
+
+                                                            .expiresAt(
+                                                                    LocalDateTime.now()
+                                                                            .plusMinutes(
+                                                                                    5
+                                                                            )
+                                                            )
+
+                                                            .build();
+
+
+                                            bookingRepository
+                                                    .saveAndFlush(
+                                                            booking
+                                                    );
+
 
                                             /*
-                                             * Force failure before commit.
+                                             * Force transaction rollback.
                                              */
-                                            throw new RuntimeException("Force rollback");
+                                            throw new RuntimeException(
+                                                    "Force rollback"
+                                            );
                                         }
                                 )
         );
 
-        long after = bookingRepository.count();
 
-        assertEquals(before, after);
+        long afterCount =
+                bookingRepository.count();
+
+
+        assertEquals(
+                beforeCount,
+                afterCount,
+                "Booking inserted inside the failed transaction must be rolled back"
+        );
+
+
+        assertTrue(
+                bookingRepository
+                        .findByUser_IdAndIdempotencyKey(
+                                userA.getId(),
+                                "rollback-key"
+                        )
+                        .isEmpty()
+        );
+    }
+
+
+    // =========================================================
+    // TEST 4
+    //
+    // PROVE TEST IS USING MYSQL, NOT H2
+    // =========================================================
+
+    @Test
+    void testEnvironment_shouldUseRealMySql() {
+
+        String version =
+                jdbcTemplate
+                        .queryForObject(
+                                "SELECT VERSION()",
+                                String.class
+                        );
+
+
+        assertNotNull(
+                version
+        );
+
+
+        assertFalse(
+                version.isBlank()
+        );
+
+
+        /*
+         * This class is connected through the MySQL
+         * Testcontainer, not the H2 integration DB.
+         */
+        String databaseName =
+                jdbcTemplate
+                        .queryForObject(
+                                "SELECT DATABASE()",
+                                String.class
+                        );
+
+
+        assertEquals(
+                "event_booking_test",
+                databaseName
+        );
+    }
+
+
+    // =========================================================
+    // CONCURRENT BOOKING HELPER
+    // =========================================================
+
+    private Callable<BookingAttemptResult> createBookingAttempt(
+            String email,
+            String idempotencyKey,
+            CountDownLatch ready,
+            CountDownLatch start
+    ) {
+
+        return () -> {
+
+            ready.countDown();
+
+
+            if (
+                    !start.await(
+                            10,
+                            TimeUnit.SECONDS
+                    )
+            ) {
+
+                throw new IllegalStateException(
+                        "Start latch timed out"
+                );
+            }
+
+
+            try {
+
+                BookingResponse response =
+                        bookingService
+                                .createBooking(
+                                        email,
+                                        idempotencyKey,
+                                        createBookingRequest()
+                                );
+
+
+                return BookingAttemptResult.success(
+                        response.getBookingReference()
+                );
+
+            } catch (
+                    ConflictException exception
+            ) {
+
+                return BookingAttemptResult.conflict(
+                        exception.getMessage()
+                );
+            }
+        };
+    }
+
+
+    // =========================================================
+    // BOOKING REQUEST HELPER
+    // =========================================================
+
+    private BookingRequest createBookingRequest() {
+
+        BookingRequest request =
+                new BookingRequest();
+
+
+        request.setEventId(
+                event.getId()
+        );
+
+
+        request.setEventSeatIds(
+                List.of(
+                        eventSeat.getId()
+                )
+        );
+
+
+        return request;
+    }
+
+
+    // =========================================================
+    // RESULT RECORD
+    // =========================================================
+
+    private record BookingAttemptResult(
+            boolean success,
+            String bookingReference,
+            String errorMessage
+    ) {
+
+        static BookingAttemptResult success(
+                String bookingReference
+        ) {
+
+            return new BookingAttemptResult(
+                    true,
+                    bookingReference,
+                    null
+            );
+        }
+
+
+        static BookingAttemptResult conflict(
+                String errorMessage
+        ) {
+
+            return new BookingAttemptResult(
+                    false,
+                    null,
+                    errorMessage
+            );
+        }
     }
 }

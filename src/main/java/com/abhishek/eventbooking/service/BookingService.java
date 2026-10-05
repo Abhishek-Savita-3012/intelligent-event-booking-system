@@ -18,12 +18,14 @@ import com.abhishek.eventbooking.dto.response.BookingDetailsSeatResponse;
 import com.abhishek.eventbooking.entity.Payment;
 import lombok.extern.slf4j.Slf4j;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.*;
+import java.util.stream.Collectors;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
-import java.util.UUID;
 
 @Service
 @Slf4j
@@ -55,7 +57,7 @@ public class BookingService {
     private long lockDurationSeconds;
 
     @Transactional
-    public BookingResponse createBooking(String email, BookingRequest request) {
+    public BookingResponse createBooking(String email, String rawIdempotencyKey, BookingRequest request) {
 
         log.info(
                 "Booking creation started eventId={} requestedSeatCount={}",
@@ -63,60 +65,243 @@ public class BookingService {
                 request.getEventSeatIds().size()
         );
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found"
-                        )
+
+        // =========================================================
+        // 1. VALIDATE + NORMALIZE IDEMPOTENCY KEY
+        // =========================================================
+
+        String idempotencyKey = normalizeIdempotencyKey(rawIdempotencyKey);
+
+        // =========================================================
+        // 2. VALIDATE DUPLICATE SEAT IDs
+        // =========================================================
+
+        /*
+         * Do this before creating the fingerprint.
+         *
+         * [101, 101] is still an invalid request and should
+         * not be treated as a valid idempotent operation.
+         */
+        validateDuplicateSeatIds(request.getEventSeatIds());
+
+        // =========================================================
+        // 3. CREATE REQUEST FINGERPRINT
+        // =========================================================
+
+        /*
+         * Fingerprint is based on:
+         *
+         * eventId
+         * +
+         * sorted eventSeatIds
+         *
+         * Example:
+         *
+         * eventId = 1
+         * seats = [103, 101, 102]
+         *
+         * canonical:
+         * 1|101,102,103
+         *
+         * Then SHA-256 is generated.
+         */
+        String requestFingerprint = buildRequestFingerprint(request.getEventId(), request.getEventSeatIds());
+
+        // =========================================================
+        // 4. LOCK USER ROW
+        // =========================================================
+
+        /*
+         * Important for concurrent retries.
+         *
+         * Suppose the same user sends:
+         *
+         * Request A
+         * Request B
+         *
+         * with the same Idempotency-Key at almost exactly
+         * the same time.
+         *
+         * Request A gets the User row lock first.
+         *
+         * Request B waits.
+         *
+         * After Request A creates and commits the Booking,
+         * Request B continues and sees that the booking
+         * for this idempotency key already exists.
+         */
+        User user = userRepository.findByEmailForUpdate(email)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
+        // =========================================================
+        // 5. CHECK WHETHER THIS IDEMPOTENCY KEY ALREADY EXISTS
+        // =========================================================
+
+        Optional<Booking> existingBooking = bookingRepository.findByUser_IdAndIdempotencyKey(user.getId(), idempotencyKey);
+
+        if (existingBooking.isPresent()) {
+
+            Booking existing = existingBooking.get();
+
+            // -----------------------------------------------------
+            // Same key but DIFFERENT request
+            // -----------------------------------------------------
+
+            if (!requestFingerprint.equals(existing.getRequestFingerprint())) {
+
+                log.warn(
+                        "Idempotency key reused with different booking request userId={} idempotencyKey={}",
+                        user.getId(),
+                        idempotencyKey
                 );
 
-        Event event = eventRepository.findById(request.getEventId())
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Event not found with id: "
-                                        + request.getEventId()
-                        )
+                throw new ConflictException(
+                        "Idempotency-Key has already been used for a different booking request"
                 );
+            }
+
+            // -----------------------------------------------------
+            // Same key + same request = legitimate retry
+            // -----------------------------------------------------
+
+            log.info("Booking idempotency replay bookingReference={} idempotencyKey={}",
+                    existing.getBookingReference(),
+                    idempotencyKey
+            );
+
+            /*
+             * We need the BookingSeat records because your
+             * existing mapToResponse(...) accepts:
+             *
+             * Booking
+             * +
+             * List<BookingSeat>
+             *
+             */
+            List<BookingSeat> existingBookingSeats = bookingSeatRepository.findByBookingId(existing.getId());
+
+            return mapToResponse(existing, existingBookingSeats);
+        }
+
+
+        // =========================================================
+        // 6. LOAD EVENT
+        // =========================================================
+
+        Event event = eventRepository
+                        .findById(request.getEventId())
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Event not found with id: " + request.getEventId()
+                                )
+                        );
+
+        // =========================================================
+        // 7. VALIDATE EVENT
+        // =========================================================
 
         validateEvent(event);
 
-        validateDuplicateSeatIds(request.getEventSeatIds());
+        // =========================================================
+        // 8. SORT SEAT IDS
+        // =========================================================
 
-        List<Long> sortedSeatIds =
-                request.getEventSeatIds()
+        /*
+         * Consistent lock ordering reduces the possibility
+         * of database deadlocks when multiple seats are
+         * selected.
+         */
+        List<Long> sortedSeatIds = request.getEventSeatIds()
                         .stream()
                         .sorted()
                         .toList();
 
+        // =========================================================
+        // 9. PESSIMISTICALLY LOCK EVENT SEATS
+        // =========================================================
+
         /*
          * IMPORTANT:
-         * Seats are loaded with PESSIMISTIC_WRITE.
          *
-         * No other booking transaction can modify
-         * these seats until this transaction finishes.
+         * This is the technical DATABASE lock.
+         *
+         * Another booking transaction trying to acquire
+         * PESSIMISTIC_WRITE on these same EventSeat rows
+         * has to wait until this transaction completes.
          */
         List<EventSeat> eventSeats = eventSeatRepository.findAllByIdInForUpdate(sortedSeatIds);
 
+        // =========================================================
+        // 10. CHECK THAT ALL REQUESTED SEATS EXIST
+        // =========================================================
+
         validateAllSeatsFound(eventSeats, request.getEventSeatIds());
+
+        // =========================================================
+        // 11. VERIFY SEATS BELONG TO REQUESTED EVENT
+        // =========================================================
 
         validateSeatsBelongToEvent(eventSeats, event);
 
+        // =========================================================
+        // 12. LAZY CLEANUP OF EXPIRED LOCKS
+        // =========================================================
+
         /*
-         * If one of these seats has an old expired
-         * lock, release it before validating.
+         * Example:
+         *
+         * EventSeat says LOCKED
+         *
+         * but:
+         *
+         * lockedUntil < current time
+         *
+         * The scheduler may not have cleaned it yet.
+         *
+         * Because these rows are already pessimistically
+         * locked by this transaction, it is safe to release
+         * an old expired reservation here.
          */
         releaseExpiredLocks(eventSeats);
 
+        // =========================================================
+        // 13. VERIFY SEATS ARE AVAILABLE
+        // =========================================================
+
         validateSeatsAvailable(eventSeats);
 
+        // =========================================================
+        // 14. CALCULATE TOTAL ON BACKEND
+        // =========================================================
+
+        /*
+         * Client never decides booking price.
+         *
+         * EventSeat prices are the source used for
+         * calculating the booking total.
+         */
         BigDecimal totalAmount = calculateTotal(eventSeats);
 
+        // =========================================================
+        // 15. CALCULATE TEMPORARY BOOKING EXPIRATION
+        // =========================================================
+
         LocalDateTime expiresAt = LocalDateTime.now().plusSeconds(lockDurationSeconds);
+
+        // =========================================================
+        // 16. CREATE BOOKING
+        // =========================================================
 
         Booking booking = Booking.builder()
                         .user(user)
                         .event(event)
                         .bookingReference(generateBookingReference())
+                        .idempotencyKey(idempotencyKey)
+                        .requestFingerprint(requestFingerprint)
                         .totalAmount(totalAmount)
                         .status(BookingStatus.PENDING)
                         .expiresAt(expiresAt)
@@ -124,7 +309,18 @@ public class BookingService {
 
         Booking savedBooking = bookingRepository.save(booking);
 
-        List<BookingSeat> bookingSeats = eventSeats.stream()
+        // =========================================================
+        // 17. CREATE BOOKING-SEAT SNAPSHOTS
+        // =========================================================
+
+        /*
+         * BookingSeat.price stores the historical price
+         * paid/selected at booking time.
+         *
+         * EventSeat.price can potentially change later.
+         */
+        List<BookingSeat> bookingSeats = eventSeats
+                        .stream()
                         .map(eventSeat ->
                                 BookingSeat.builder()
                                         .booking(savedBooking)
@@ -134,31 +330,62 @@ public class BookingService {
                         )
                         .toList();
 
+
         bookingSeatRepository.saveAll(bookingSeats);
 
-        /*
-         * Temporary business reservation.
-         *
-         * This is different from the database
-         * PESSIMISTIC_WRITE lock.
-         */
-        eventSeats.forEach(eventSeat -> {
+        // =========================================================
+        // 18. CREATE DURABLE TEMPORARY SEAT RESERVATION
+        // =========================================================
 
-            eventSeat.setStatus(EventSeatStatus.LOCKED);
-            eventSeat.setLockedByBooking(savedBooking);
-            eventSeat.setLockedUntil(expiresAt);
-        });
+        /*
+         * IMPORTANT:
+         *
+         * EventSeatStatus.LOCKED
+         *
+         * is NOT the same thing as:
+         *
+         * PESSIMISTIC_WRITE.
+         *
+         *
+         * PESSIMISTIC_WRITE
+         * -----------------
+         * Database technical lock.
+         * Exists only until transaction ends.
+         *
+         *
+         * EventSeatStatus.LOCKED
+         * ----------------------
+         * Business reservation.
+         * Persists after transaction commits.
+         * Gives the user time to complete payment.
+         */
+        eventSeats.forEach(
+                eventSeat -> {
+                    eventSeat.setStatus(EventSeatStatus.LOCKED);
+                    eventSeat.setLockedByBooking(savedBooking);
+                    eventSeat.setLockedUntil(expiresAt);
+                }
+        );
 
         eventSeatRepository.saveAll(eventSeats);
 
+        // =========================================================
+        // 19. LOG SUCCESS
+        // =========================================================
+
         log.info(
-                "Booking created bookingReference={} eventId={} seatCount={} totalAmount={} expiresAt={}",
+                "Booking created bookingReference={} eventId={} seatCount={} totalAmount={} expiresAt={} idempotencyKey={}",
                 savedBooking.getBookingReference(),
                 event.getId(),
                 eventSeats.size(),
                 savedBooking.getTotalAmount(),
-                savedBooking.getExpiresAt()
+                savedBooking.getExpiresAt(),
+                idempotencyKey
         );
+
+        // =========================================================
+        // 20. RESPONSE
+        // =========================================================
 
         return mapToResponse(savedBooking, bookingSeats);
     }
@@ -454,5 +681,59 @@ public class BookingService {
                 .expiresAt(booking.getExpiresAt())
                 .seats(seatResponses)
                 .build();
+    }
+
+    private String normalizeIdempotencyKey(String idempotencyKey) {
+
+        if (idempotencyKey == null || idempotencyKey.isBlank()) {
+
+            throw new BadRequestException(
+                    "Idempotency-Key header is required"
+            );
+        }
+
+        String normalized = idempotencyKey.trim();
+
+        if (normalized.length() > 100) {
+
+            throw new BadRequestException(
+                    "Idempotency-Key must not exceed 100 characters"
+            );
+        }
+
+        return normalized;
+    }
+
+    private String buildRequestFingerprint(Long eventId, List<Long> eventSeatIds) {
+
+        List<Long> sortedSeatIds = eventSeatIds.stream().sorted().toList();
+
+        String canonicalRequest = eventId
+                        + "|"
+                        + sortedSeatIds
+                        .stream()
+                        .map(String::valueOf)
+                        .collect(Collectors.joining(","));
+
+
+        try {
+
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+
+            byte[] hash = digest.digest(canonicalRequest.getBytes(StandardCharsets.UTF_8));
+
+            return HexFormat
+                    .of()
+                    .formatHex(hash);
+
+        } catch (NoSuchAlgorithmException ex) {
+
+            /*
+             * SHA-256 is required by Java,
+             * so this should never normally happen.
+             */
+
+            throw new IllegalStateException("SHA-256 algorithm is unavailable", ex);
+        }
     }
 }

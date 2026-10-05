@@ -172,4 +172,9 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     long countByEvent_Id(Long eventId);
 
     long countByEvent_IdAndStatus(Long eventId, BookingStatus status);
+
+    Optional<Booking> findByUser_IdAndIdempotencyKey(
+            Long userId,
+            String idempotencyKey
+    );
 }

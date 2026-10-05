@@ -10,8 +10,13 @@ import java.time.LocalDateTime;
 @Table(
         name = "bookings",
         uniqueConstraints = {
+
                 @UniqueConstraint(
-                        columnNames = "booking_reference"
+                        name = "uk_booking_user_idempotency",
+                        columnNames = {
+                                "user_id",
+                                "idempotency_key"
+                        }
                 )
         }
 )
@@ -49,6 +54,13 @@ public class Booking {
 
     @Column(name = "expires_at", nullable = false)
     private LocalDateTime expiresAt;
+
+    @Column(name = "idempotency_key", length = 100)
+    private String idempotencyKey;
+
+
+    @Column(name = "request_fingerprint", length = 64)
+    private String requestFingerprint;
 
     @PrePersist
     public void prePersist() {

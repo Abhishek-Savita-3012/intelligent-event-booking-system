@@ -28,12 +28,21 @@ public class BookingController {
     // ==============================
 
     @PostMapping
-    public ResponseEntity<BookingResponse> createBooking(Authentication authentication, @Valid @RequestBody BookingRequest request) {
+    public ResponseEntity<BookingResponse> createBooking(Authentication authentication,
 
-        BookingResponse response = bookingService.createBooking(authentication.getName(), request);
+            @RequestHeader(value = "Idempotency-Key", required = false)
+            String idempotencyKey,
+
+            @Valid
+            @RequestBody
+            BookingRequest request
+    ) {
+
+        BookingResponse response = bookingService.createBooking(authentication.getName(), idempotencyKey, request);
 
         return ResponseEntity
                 .status(HttpStatus.CREATED)
+                .header("Idempotency-Key", idempotencyKey)
                 .body(response);
     }
 

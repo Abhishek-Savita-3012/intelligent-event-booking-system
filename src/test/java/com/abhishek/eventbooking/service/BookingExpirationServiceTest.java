@@ -40,8 +40,7 @@ class BookingExpirationServiceTest {
                         .expiresAt(LocalDateTime.now().minusMinutes(1))
                         .build();
 
-        EventSeat eventSeat =
-                EventSeat.builder()
+        EventSeat eventSeat = EventSeat.builder()
                         .id(10L)
                         .status(EventSeatStatus.LOCKED)
                         .lockedByBooking(booking)
