@@ -84,4 +84,23 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
     long countByEvent_Id(Long eventId);
 
     long countByEvent_IdAndStatus(Long eventId, EventSeatStatus status);
+
+    @Query("""
+        SELECT es
+        FROM EventSeat es
+
+        JOIN FETCH es.seat s
+        JOIN FETCH s.hall h
+        JOIN FETCH h.venue v
+
+        WHERE es.event.id = :eventId
+
+        ORDER BY
+            s.rowName ASC,
+            s.seatNumber ASC
+        """)
+    List<EventSeat> findSeatMapByEventId(
+            @Param("eventId")
+            Long eventId
+    );
 }

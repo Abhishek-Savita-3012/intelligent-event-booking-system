@@ -695,4 +695,125 @@ class EventBookingIntegrationTest {
 
                 .andExpect(status().isUnauthorized());
     }
+
+    @Test
+    void getSeatMap_forExistingEvent_shouldReturnGroupedSeatMap() throws Exception {
+
+        mockMvc.perform(
+                        get(
+                                "/api/events/"
+                                        + eventId
+                                        + "/seat-map"
+                        )
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.eventId").value(eventId))
+
+                .andExpect(jsonPath("$.eventName").value("Integration Test Movie"))
+
+                .andExpect(jsonPath("$.totalSeats").value(1))
+
+                .andExpect(jsonPath("$.availableSeats").value(1))
+
+                .andExpect(jsonPath("$.lockedSeats").value(0))
+
+                .andExpect(jsonPath("$.bookedSeats").value(0))
+
+                .andExpect(jsonPath("$.rows.length()").value(1))
+
+                .andExpect(jsonPath("$.rows[0].rowName").value("A"))
+
+                .andExpect(jsonPath("$.rows[0].seats.length()").value(1))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].eventSeatId").value(eventSeatId))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].seatNumber").value(1))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].seatType").value("REGULAR"))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].status").value("AVAILABLE"))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].selectable").value(true));
+    }
+
+    @Test
+    void getSeatMap_whenEventDoesNotExist_shouldReturn404() throws Exception {
+
+        mockMvc.perform(
+                        get(
+                                "/api/events/999999/seat-map"
+                        )
+                )
+
+                .andExpect(status().isNotFound())
+
+                .andExpect(jsonPath("$.status").value(404))
+
+                .andExpect(jsonPath("$.message").value("Event not found with id: 999999"));
+    }
+
+    @Test
+    void getSeatMap_whenSeatBooked_shouldMarkSeatNotSelectable() throws Exception {
+
+        EventSeat seat = eventSeatRepository
+                        .findById(eventSeatId)
+                        .orElseThrow();
+
+        seat.setStatus(EventSeatStatus.BOOKED);
+
+        eventSeatRepository.saveAndFlush(seat);
+
+        mockMvc.perform(
+                        get(
+                                "/api/events/"
+                                        + eventId
+                                        + "/seat-map"
+                        )
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.availableSeats").value(0))
+
+                .andExpect(jsonPath("$.bookedSeats").value(1))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].status").value("BOOKED"))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].selectable").value(false));
+    }
+
+    @Test
+    void getSeatMap_whenLockExpired_shouldDisplaySeatAsAvailable() throws Exception {
+
+        EventSeat seat = eventSeatRepository
+                        .findById(eventSeatId)
+                        .orElseThrow();
+
+
+        seat.setStatus(EventSeatStatus.LOCKED);
+
+        seat.setLockedUntil(LocalDateTime.now().minusMinutes(1));
+
+        eventSeatRepository.saveAndFlush(seat);
+
+        mockMvc.perform(
+                        get(
+                                "/api/events/"
+                                        + eventId
+                                        + "/seat-map"
+                        )
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.availableSeats").value(1))
+
+                .andExpect(jsonPath("$.lockedSeats").value(0))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].status").value("AVAILABLE"))
+
+                .andExpect(jsonPath("$.rows[0].seats[0].selectable").value(true));
+    }
 }
