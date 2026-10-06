@@ -80,7 +80,6 @@ class MySQLBookingConcurrencyIntegrationTest {
     @Autowired
     private BookingService bookingService;
 
-
     // =========================================================
     // REPOSITORIES
     // =========================================================
@@ -1075,5 +1074,55 @@ class MySQLBookingConcurrencyIntegrationTest {
                     errorMessage
             );
         }
+    }
+
+    @Test
+    void flyway_shouldApplyBaselineMigrationOnFreshMySql() {
+
+        Integer migrationCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM flyway_schema_history
+                        WHERE version = '1'
+                        AND success = TRUE
+                        """,
+                        Integer.class
+                );
+
+        assertNotNull(
+                migrationCount
+        );
+
+        assertEquals(
+                1,
+                migrationCount
+        );
+    }
+
+    @Test
+    void flyway_shouldCreateCoreTables() {
+
+        Integer bookingTableCount =
+                jdbcTemplate.queryForObject(
+                        """
+                        SELECT COUNT(*)
+                        FROM information_schema.tables
+                        WHERE table_schema = DATABASE()
+                        AND table_name = 'bookings'
+                        """,
+                        Integer.class
+                );
+
+
+        assertNotNull(
+                bookingTableCount
+        );
+
+
+        assertEquals(
+                1,
+                bookingTableCount
+        );
     }
 }
