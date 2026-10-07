@@ -1992,4 +1992,115 @@ class EventBookingIntegrationTest {
                 .orElseThrow()
                 .getId();
     }
+
+    @Test
+    void getEvents_filterByCity_shouldReturnMatchingEvents() throws Exception {
+
+        mockMvc.perform(
+                        get("/api/events")
+                                .param("city", "Lucknow")
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$").isArray())
+
+                .andExpect(jsonPath("$[0].id").value(eventId));
+    }
+
+    @Test
+    void getEvents_filterByCategoryAndStatus_shouldReturnMatchingEvents() throws Exception {
+
+        mockMvc.perform(
+                        get("/api/events")
+
+                                .param("category", "MOVIE")
+                                .param("status", "UPCOMING")
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void getEvents_whenFiltersDoNotMatch_shouldReturnEmptyArray() throws Exception {
+
+        mockMvc.perform(
+                        get("/api/events")
+
+                                .param("city", "NonExistingCity")
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.length()").value(0));
+    }
+
+    @Test
+    void getEvents_filterByHallId_shouldReturnMatchingEvent() throws Exception {
+
+        mockMvc.perform(
+                        get("/api/events")
+
+                                .param("hallId", hall.getId().toString())
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void getEvents_filterByVenueId_shouldReturnMatchingEvent() throws Exception {
+
+        mockMvc.perform(
+                        get("/api/events")
+
+                                .param("venueId", venue.getId().toString())
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.length()").value(1));
+    }
+
+    @Test
+    void getEvents_startFromAfterStartTo_shouldReturn400() throws Exception {
+
+        mockMvc.perform(
+                        get("/api/events")
+
+                                .param("startFrom", "2027-12-01T00:00:00")
+                                .param("startTo", "2027-01-01T00:00:00")
+                )
+
+                .andExpect(status().isBadRequest())
+
+                .andExpect(jsonPath("$.message")
+                                .value(
+                                        "startFrom must not be after startTo"
+                                )
+                );
+    }
+
+    @Test
+    void getEvents_startRange_shouldReturnMatchingEvent() throws Exception {
+
+        LocalDateTime from = event.getStartTime().minusHours(1);
+
+        LocalDateTime to = event.getStartTime().plusHours(1);
+
+        mockMvc.perform(
+                        get("/api/events")
+
+                                .param("startFrom", from.toString())
+
+                                .param("startTo", to.toString())
+                )
+
+                .andExpect(status().isOk())
+
+                .andExpect(jsonPath("$.length()").value(1));
+    }
 }

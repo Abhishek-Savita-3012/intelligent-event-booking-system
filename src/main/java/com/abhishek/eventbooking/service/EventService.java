@@ -1,9 +1,9 @@
 package com.abhishek.eventbooking.service;
 
 import com.abhishek.eventbooking.dto.request.EventRequest;
+import com.abhishek.eventbooking.dto.request.EventSearchCriteria;
 import com.abhishek.eventbooking.dto.response.EventResponse;
 import com.abhishek.eventbooking.entity.Event;
-import com.abhishek.eventbooking.entity.EventCategory;
 import com.abhishek.eventbooking.entity.EventStatus;
 import com.abhishek.eventbooking.entity.Hall;
 import com.abhishek.eventbooking.entity.Venue;
@@ -12,8 +12,12 @@ import com.abhishek.eventbooking.exception.ConflictException;
 import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.HallRepository;
+import com.abhishek.eventbooking.specification.EventSpecification;
+
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -154,126 +158,33 @@ public class EventService {
     // SEARCH / FILTER EVENTS
     // ==============================
 
-    public List<EventResponse> searchEvents(
-            String name,
-            String city,
-            EventCategory category,
-            EventStatus status
-    ) {
+    @Transactional(readOnly = true)
+    public List<EventResponse> searchEvents(EventSearchCriteria criteria) {
 
-        List<Event> events;
+        validateSearchCriteria(
+                criteria
+        );
 
-        boolean hasName =
-                name != null
-                        && !name.isBlank();
+        Specification<Event> specification = EventSpecification.withFilters(criteria);
 
-        boolean hasCity =
-                city != null
-                        && !city.isBlank();
-
-        boolean hasCategory =
-                category != null;
-
-        boolean hasStatus =
-                status != null;
-
-        if (
-                hasName
-                        && !hasCity
-                        && !hasCategory
-                        && !hasStatus
-        ) {
-
-            events =
-                    eventRepository
-                            .findByNameContainingIgnoreCase(
-                                    name.trim()
-                            );
-
-        } else if (
-                hasCity
-                        && hasCategory
-                        && hasStatus
-        ) {
-
-            events =
-                    eventRepository
-                            .findByHallVenueCityIgnoreCaseAndCategoryAndStatus(
-                                    city.trim(),
-                                    category,
-                                    status
-                            );
-
-        } else if (
-                hasCity
-                        && hasCategory
-        ) {
-
-            events =
-                    eventRepository
-                            .findByHallVenueCityIgnoreCaseAndCategory(
-                                    city.trim(),
-                                    category
-                            );
-
-        } else if (
-                hasCity
-                        && hasStatus
-        ) {
-
-            events =
-                    eventRepository
-                            .findByHallVenueCityIgnoreCaseAndStatus(
-                                    city.trim(),
-                                    status
-                            );
-
-        } else if (
-                hasCategory
-                        && hasStatus
-        ) {
-
-            events =
-                    eventRepository
-                            .findByCategoryAndStatus(
-                                    category,
-                                    status
-                            );
-
-        } else if (hasCity) {
-
-            events =
-                    eventRepository
-                            .findByHallVenueCityIgnoreCase(
-                                    city.trim()
-                            );
-
-        } else if (hasCategory) {
-
-            events =
-                    eventRepository
-                            .findByCategory(
-                                    category
-                            );
-
-        } else if (hasStatus) {
-
-            events =
-                    eventRepository
-                            .findByStatus(
-                                    status
-                            );
-
-        } else {
-
-            events =
-                    eventRepository.findAll();
-        }
+        List<Event> events = eventRepository.findAll(specification);
 
         return events
                 .stream()
                 .map(this::mapToResponse)
                 .toList();
+    }
+
+    private void validateSearchCriteria(EventSearchCriteria criteria) {
+
+        if (criteria.getStartFrom() != null && criteria.getStartTo() != null
+                        && criteria.getStartFrom().isAfter(criteria.getStartTo())
+        ) {
+
+            throw new BadRequestException(
+                    "startFrom must not be after startTo"
+            );
+        }
     }
 
     // ==============================

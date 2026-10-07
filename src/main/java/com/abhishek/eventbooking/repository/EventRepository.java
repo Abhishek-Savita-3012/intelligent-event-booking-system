@@ -4,13 +4,14 @@ import com.abhishek.eventbooking.entity.Event;
 import com.abhishek.eventbooking.entity.EventCategory;
 import com.abhishek.eventbooking.entity.EventStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
-public interface EventRepository extends JpaRepository<Event, Long> {
+public interface EventRepository extends JpaRepository<Event, Long>, JpaSpecificationExecutor<Event> {
 
     // ==============================
     // FIND EVENTS BY HALL
