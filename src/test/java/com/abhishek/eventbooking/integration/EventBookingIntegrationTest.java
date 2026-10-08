@@ -2103,4 +2103,410 @@ class EventBookingIntegrationTest {
 
                 .andExpect(jsonPath("$.length()").value(1));
     }
+
+    @Test
+    void getMyBookings_shouldReturnPagedResponse() throws Exception {
+
+        String token = registerAndLoginUser("history-user@example.com");
+
+        String bookingBody = createBookingBody(eventId, eventSeatId);
+
+        mockMvc.perform(
+                        post("/api/bookings")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .header(
+                                        "Idempotency-Key",
+                                        "history-booking-001"
+                                )
+
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+
+                                .content(
+                                        bookingBody
+                                )
+                )
+
+                .andExpect(
+                        status().isCreated()
+                );
+
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .param(
+                                        "page",
+                                        "0"
+                                )
+
+                                .param(
+                                        "size",
+                                        "10"
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.content")
+                                .isArray()
+                )
+
+                .andExpect(
+                        jsonPath("$.content.length()")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.pageNumber")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.pageSize")
+                                .value(10)
+                )
+
+                .andExpect(
+                        jsonPath("$.totalElements")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.totalPages")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.first")
+                                .value(true)
+                )
+
+                .andExpect(
+                        jsonPath("$.last")
+                                .value(true)
+                );
+    }
+
+    @Test
+    void getMyBookings_filterByStatus_shouldReturnMatchingBooking() throws Exception {
+
+        String token = registerAndLoginUser("status-history@example.com");
+
+        mockMvc.perform(
+                        post("/api/bookings")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .header(
+                                        "Idempotency-Key",
+                                        "history-status-001"
+                                )
+
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+
+                                .content(
+                                        createBookingBody(
+                                                eventId,
+                                                eventSeatId
+                                        )
+                                )
+                )
+
+                .andExpect(
+                        status().isCreated()
+                );
+
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .param(
+                                        "status",
+                                        "PENDING"
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.content.length()")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.content[0].bookingStatus")
+                                .value("PENDING")
+                );
+    }
+
+    @Test
+    void getMyBookings_nonMatchingStatus_shouldReturnEmptyPage() throws Exception {
+
+        String token = registerAndLoginUser("empty-history@example.com");
+
+        mockMvc.perform(
+                        post("/api/bookings")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .header(
+                                        "Idempotency-Key",
+                                        "empty-history-key"
+                                )
+
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+
+                                .content(
+                                        createBookingBody(
+                                                eventId,
+                                                eventSeatId
+                                        )
+                                )
+                )
+
+                .andExpect(
+                        status().isCreated()
+                );
+
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .param(
+                                        "status",
+                                        "CONFIRMED"
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.content.length()")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.totalElements")
+                                .value(0)
+                );
+    }
+
+    @Test
+    void getMyBookings_searchByEventName_shouldReturnMatchingBooking() throws Exception {
+
+        String token = registerAndLoginUser("search-history@example.com");
+
+        mockMvc.perform(
+                        post("/api/bookings")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .header(
+                                        "Idempotency-Key",
+                                        "history-search-001"
+                                )
+
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+
+                                .content(
+                                        createBookingBody(
+                                                eventId,
+                                                eventSeatId
+                                        )
+                                )
+                )
+
+                .andExpect(
+                        status().isCreated()
+                );
+
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .param(
+                                        "search",
+                                        "Integration Test"
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.content.length()")
+                                .value(1)
+                );
+    }
+
+    @Test
+    void getMyBookings_shouldNeverReturnAnotherUsersBookings() throws Exception {
+
+        String userAToken = registerAndLoginUser("owner-a@example.com");
+
+        String userBToken = registerAndLoginUser("owner-b@example.com");
+
+        mockMvc.perform(
+                        post("/api/bookings")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + userAToken
+                                )
+
+                                .header(
+                                        "Idempotency-Key",
+                                        "owner-a-booking"
+                                )
+
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+
+                                .content(
+                                        createBookingBody(
+                                                eventId,
+                                                eventSeatId
+                                        )
+                                )
+                )
+
+                .andExpect(
+                        status().isCreated()
+                );
+
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + userBToken
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.content.length()")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.totalElements")
+                                .value(0)
+                );
+    }
+
+    @Test
+    void getMyBookings_invalidPageSize_shouldReturn400() throws Exception {
+
+        String token = registerAndLoginUser("invalid-page@example.com");
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .param(
+                                        "size",
+                                        "101"
+                                )
+                )
+
+                .andExpect(
+                        status().isBadRequest()
+                );
+    }
+
+    @Test
+    void getMyBookings_invalidCreatedDateRange_shouldReturn400() throws Exception {
+
+        String token = registerAndLoginUser("invalid-range@example.com");
+
+        mockMvc.perform(
+                        get("/api/bookings/my")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer " + token
+                                )
+
+                                .param(
+                                        "createdFrom",
+                                        "2026-12-01T00:00:00"
+                                )
+
+                                .param(
+                                        "createdTo",
+                                        "2026-10-01T00:00:00"
+                                )
+                )
+
+                .andExpect(
+                        status().isBadRequest()
+                )
+
+                .andExpect(
+                        jsonPath("$.message")
+                                .value(
+                                        "createdFrom must not be after createdTo"
+                                )
+                );
+    }
 }

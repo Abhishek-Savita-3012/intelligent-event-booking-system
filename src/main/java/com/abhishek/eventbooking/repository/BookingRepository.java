@@ -11,6 +11,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -176,5 +177,172 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
     Optional<Booking> findByUser_IdAndIdempotencyKey(
             Long userId,
             String idempotencyKey
+    );
+
+    @Query(
+            value = """
+                SELECT b
+                FROM Booking b
+
+                JOIN FETCH b.user u
+                JOIN FETCH b.event e
+                JOIN FETCH e.hall h
+                JOIN FETCH h.venue v
+
+                WHERE u.email = :email
+
+                AND
+                    (
+                        :status IS NULL
+                        OR b.status = :status
+                    )
+
+                AND
+                    (
+                        :search IS NULL
+
+                        OR :search = ''
+
+                        OR LOWER(b.bookingReference)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+
+                        OR LOWER(e.name)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+
+                        OR LOWER(v.name)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+
+                        OR LOWER(v.city)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+                    )
+
+                AND
+                    (
+                        :createdFrom IS NULL
+                        OR b.createdAt >= :createdFrom
+                    )
+
+                AND
+                    (
+                        :createdTo IS NULL
+                        OR b.createdAt <= :createdTo
+                    )
+                """,
+
+            countQuery = """
+                SELECT COUNT(b)
+                FROM Booking b
+
+                JOIN b.user u
+                JOIN b.event e
+                JOIN e.hall h
+                JOIN h.venue v
+
+                WHERE u.email = :email
+
+                AND
+                    (
+                        :status IS NULL
+                        OR b.status = :status
+                    )
+
+                AND
+                    (
+                        :search IS NULL
+
+                        OR :search = ''
+
+                        OR LOWER(b.bookingReference)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+
+                        OR LOWER(e.name)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+
+                        OR LOWER(v.name)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+
+                        OR LOWER(v.city)
+                            LIKE LOWER(
+                                CONCAT(
+                                    '%',
+                                    :search,
+                                    '%'
+                                )
+                            )
+                    )
+
+                AND
+                    (
+                        :createdFrom IS NULL
+                        OR b.createdAt >= :createdFrom
+                    )
+
+                AND
+                    (
+                        :createdTo IS NULL
+                        OR b.createdAt <= :createdTo
+                    )
+                """
+    )
+    Page<Booking> searchUserBookings(
+
+            @Param("email")
+            String email,
+
+            @Param("status")
+            BookingStatus status,
+
+            @Param("search")
+            String search,
+
+            @Param("createdFrom")
+            LocalDateTime createdFrom,
+
+            @Param("createdTo")
+            LocalDateTime createdTo,
+
+            Pageable pageable
     );
 }

@@ -25,8 +25,7 @@ public class AdminBookingService {
     }
 
     @Transactional(readOnly = true)
-    public PagedResponse<AdminBookingResponse>
-    getBookings(
+    public PagedResponse<AdminBookingResponse> getBookings(
             BookingStatus status,
             String search,
             int page,

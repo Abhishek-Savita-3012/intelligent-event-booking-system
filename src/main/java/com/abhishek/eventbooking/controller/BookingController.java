@@ -1,9 +1,11 @@
 package com.abhishek.eventbooking.controller;
 
 import com.abhishek.eventbooking.dto.request.BookingRequest;
+import com.abhishek.eventbooking.dto.request.UserBookingSearchCriteria;
 import com.abhishek.eventbooking.dto.response.BookingDetailsResponse;
 import com.abhishek.eventbooking.dto.response.BookingHistoryResponse;
 import com.abhishek.eventbooking.dto.response.BookingResponse;
+import com.abhishek.eventbooking.dto.response.PagedResponse;
 import com.abhishek.eventbooking.service.BookingService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -51,10 +53,15 @@ public class BookingController {
     // ==============================
 
     @GetMapping("/my")
-    public ResponseEntity<List<BookingHistoryResponse>> getMyBookings(Authentication authentication) {
+    public ResponseEntity<PagedResponse<BookingHistoryResponse>> getMyBookings(
+            Authentication authentication,
+
+            @ModelAttribute
+            UserBookingSearchCriteria criteria
+    ) {
 
         return ResponseEntity.ok(
-                bookingService.getMyBookings(authentication.getName())
+                bookingService.getMyBookings(authentication.getName(), criteria)
         );
     }
 

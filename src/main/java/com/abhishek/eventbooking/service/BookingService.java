@@ -1,9 +1,8 @@
 package com.abhishek.eventbooking.service;
 
 import com.abhishek.eventbooking.dto.request.BookingRequest;
-import com.abhishek.eventbooking.dto.response.BookingHistoryResponse;
-import com.abhishek.eventbooking.dto.response.BookingResponse;
-import com.abhishek.eventbooking.dto.response.BookingSeatResponse;
+import com.abhishek.eventbooking.dto.request.UserBookingSearchCriteria;
+import com.abhishek.eventbooking.dto.response.*;
 import com.abhishek.eventbooking.entity.*;
 import com.abhishek.eventbooking.exception.BadRequestException;
 import com.abhishek.eventbooking.exception.ConflictException;
@@ -13,10 +12,12 @@ import com.abhishek.eventbooking.repository.*;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
-import com.abhishek.eventbooking.dto.response.BookingDetailsResponse;
-import com.abhishek.eventbooking.dto.response.BookingDetailsSeatResponse;
 import com.abhishek.eventbooking.entity.Payment;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -522,23 +523,6 @@ public class BookingService {
                 .toUpperCase();
     }
 
-    @Transactional(readOnly = true)
-    public List<BookingHistoryResponse> getMyBookings(String email) {
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "User not found"
-                        )
-                );
-
-        return bookingRepository
-                .findByUserIdOrderByCreatedAtDesc(user.getId())
-                .stream()
-                .map(this::mapToHistoryResponse)
-                .toList();
-    }
-
     private BookingHistoryResponse mapToHistoryResponse(Booking booking) {
 
         Event event = booking.getEvent();
@@ -735,5 +719,95 @@ public class BookingService {
 
             throw new IllegalStateException("SHA-256 algorithm is unavailable", ex);
         }
+    }
+
+    @Transactional(readOnly = true)
+    public PagedResponse<BookingHistoryResponse> getMyBookings(String email, UserBookingSearchCriteria criteria) {
+
+        validateUserBookingSearchCriteria(criteria);
+
+        String normalizedSearch = normalizeSearch(criteria.getSearch());
+
+        Sort sort = buildUserBookingSort(criteria.getSortBy(), criteria.getDirection());
+
+        Pageable pageable = PageRequest.of(criteria.getPage(), criteria.getSize(), sort);
+
+        Page<Booking> bookingPage = bookingRepository.searchUserBookings(
+                        email,
+                        criteria.getStatus(),
+                        normalizedSearch,
+                        criteria.getCreatedFrom(),
+                        criteria.getCreatedTo(),
+                        pageable
+                );
+
+        List<BookingHistoryResponse> content = bookingPage
+                        .getContent()
+                        .stream()
+                        .map(this::mapToHistoryResponse)
+                        .toList();
+
+        return new PagedResponse<>(
+                content,
+                bookingPage.getNumber(),
+                bookingPage.getSize(),
+                bookingPage.getTotalElements(),
+                bookingPage.getTotalPages(),
+                bookingPage.isFirst(),
+                bookingPage.isLast()
+        );
+    }
+
+    private void validateUserBookingSearchCriteria(UserBookingSearchCriteria criteria) {
+
+        if (criteria.getPage() < 0) {
+
+            throw new BadRequestException(
+                    "Page number must be 0 or greater"
+            );
+        }
+
+        if (criteria.getSize() < 1 || criteria.getSize() > 100) {
+
+            throw new BadRequestException(
+                    "Page size must be between 1 and 100"
+            );
+        }
+
+        if (criteria.getCreatedFrom() != null && criteria.getCreatedTo() != null &&
+                        criteria.getCreatedFrom().isAfter(criteria.getCreatedTo())) {
+
+            throw new BadRequestException(
+                    "createdFrom must not be after createdTo"
+            );
+        }
+    }
+
+    private String normalizeSearch(String search) {
+
+        if (search == null || search.isBlank()) {
+
+            return null;
+        }
+
+        return search.trim();
+    }
+
+    private Sort buildUserBookingSort(String sortBy, String direction) {
+
+        String safeSortBy = switch (sortBy == null ? "" : sortBy) {
+
+                    case "bookingReference" -> "bookingReference";
+                    case "totalAmount" -> "totalAmount";
+                    case "status" -> "status";
+                    case "createdAt" -> "createdAt";
+
+                    default -> "createdAt";
+                };
+
+
+        Sort.Direction safeDirection = "asc".equalsIgnoreCase(direction) ? Sort.Direction.ASC : Sort.Direction.DESC;
+
+        return Sort.by(safeDirection, safeSortBy);
     }
 }
