@@ -1,5 +1,6 @@
 package com.abhishek.eventbooking.repository;
 
+import com.abhishek.eventbooking.dto.projection.RefundStatusSummaryProjection;
 import com.abhishek.eventbooking.entity.Refund;
 import com.abhishek.eventbooking.entity.RefundStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -51,5 +52,22 @@ public interface RefundRepository extends JpaRepository<Refund, Long> {
 
             @Param("status")
             RefundStatus status
+    );
+
+    @Query("""
+        SELECT
+            r.status AS status,
+            COUNT(r) AS count,
+            COALESCE(
+                SUM(r.amount),
+                0
+            ) AS totalAmount
+        FROM Refund r
+        WHERE r.booking.event.id = :eventId
+        GROUP BY r.status
+        """)
+    List<RefundStatusSummaryProjection> summarizeRefundsForEvent(
+            @Param("eventId")
+            Long eventId
     );
 }

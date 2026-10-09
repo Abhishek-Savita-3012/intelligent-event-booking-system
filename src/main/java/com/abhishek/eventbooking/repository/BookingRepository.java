@@ -1,5 +1,6 @@
 package com.abhishek.eventbooking.repository;
 
+import com.abhishek.eventbooking.dto.projection.BookingStatusCountProjection;
 import com.abhishek.eventbooking.entity.Booking;
 import com.abhishek.eventbooking.entity.BookingStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -344,5 +345,18 @@ public interface BookingRepository extends JpaRepository<Booking, Long> {
             LocalDateTime createdTo,
 
             Pageable pageable
+    );
+
+    @Query("""
+        SELECT
+            b.status AS status,
+            COUNT(b) AS count
+        FROM Booking b
+        WHERE b.event.id = :eventId
+        GROUP BY b.status
+        """)
+    List<BookingStatusCountProjection> countBookingsByStatusForEvent(
+            @Param("eventId")
+            Long eventId
     );
 }

@@ -1,5 +1,6 @@
 package com.abhishek.eventbooking.repository;
 
+import com.abhishek.eventbooking.dto.projection.SeatTypeStatusCountProjection;
 import com.abhishek.eventbooking.entity.EventSeat;
 import com.abhishek.eventbooking.entity.EventSeatStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -100,6 +101,23 @@ public interface EventSeatRepository extends JpaRepository<EventSeat, Long> {
             s.seatNumber ASC
         """)
     List<EventSeat> findSeatMapByEventId(
+            @Param("eventId")
+            Long eventId
+    );
+
+    @Query("""
+        SELECT
+            s.seatType AS seatType,
+            es.status AS status,
+            COUNT(es) AS count
+        FROM EventSeat es
+        JOIN es.seat s
+        WHERE es.event.id = :eventId
+        GROUP BY
+            s.seatType,
+            es.status
+        """)
+    List<SeatTypeStatusCountProjection> summarizeSeatInventoryForEvent(
             @Param("eventId")
             Long eventId
     );

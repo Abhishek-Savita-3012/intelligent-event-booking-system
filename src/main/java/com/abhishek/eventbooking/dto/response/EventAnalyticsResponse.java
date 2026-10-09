@@ -5,6 +5,7 @@ import lombok.*;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 @Getter
 @Setter
@@ -22,9 +23,8 @@ public class EventAnalyticsResponse {
     private EventStatus eventStatus;
     private LocalDateTime startTime;
 
-
     // ==============================
-    // VENUE / HALL
+    // VENUE / HALL (LOCATION)
     // ==============================
 
     private Long venueId;
@@ -32,9 +32,8 @@ public class EventAnalyticsResponse {
     private Long hallId;
     private String hallName;
 
-
     // ==============================
-    // SEAT INVENTORY
+    // CURRENT SEAT INVENTORY
     // ==============================
 
     private long totalSeats;
@@ -42,22 +41,60 @@ public class EventAnalyticsResponse {
     private long lockedSeats;
     private long bookedSeats;
     private BigDecimal occupancyPercentage;
+    private BigDecimal lockedPercentage;
 
+    // =========================================================
+    // SEAT TYPE BREAKDOWN
+    // =========================================================
+
+    private List<SeatTypeAnalyticsResponse> seatTypeBreakdown;
 
     // ==============================
-    // BOOKINGS
+    // BOOKING LIFECYCLE
     // ==============================
 
     private long totalBookings;
+    private long pendingBookings;
     private long confirmedBookings;
     private long cancelledBookings;
+    private long failedBookings;
+    private long expiredBookings;
 
+    // =========================================================
+    // BOOKING RATES
+    // =========================================================
+
+    private BigDecimal confirmationRate;
+    private BigDecimal cancellationRate;
+    private BigDecimal failureRate;
+    private BigDecimal expirationRate;
+
+    // =========================================================
+    // PAYMENT ANALYTICS
+    // =========================================================
+
+    private long paymentAttempts;
+    private long successfulPayments;
+    private long failedPayments;
+    private long pendingPayments;
+    private BigDecimal paymentSuccessRate;
+    private BigDecimal averageSuccessfulPaymentAmount;
+
+    // =========================================================
+    // REFUND ANALYTICS
+    // =========================================================
+
+    private long refundAttempts;
+    private long successfulRefunds;
+    private long failedRefunds;
+    private BigDecimal refundSuccessRate;
 
     // ==============================
-    // FINANCIALS
+    // REVENUE
     // ==============================
 
     private BigDecimal grossTicketSales;
     private BigDecimal refundedAmount;
     private BigDecimal netRevenue;
+    private BigDecimal refundedPercentageOfGross;
 }

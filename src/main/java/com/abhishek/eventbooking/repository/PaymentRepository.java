@@ -1,5 +1,6 @@
 package com.abhishek.eventbooking.repository;
 
+import com.abhishek.eventbooking.dto.projection.PaymentStatusSummaryProjection;
 import com.abhishek.eventbooking.entity.Payment;
 import com.abhishek.eventbooking.entity.PaymentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -55,5 +56,22 @@ public interface PaymentRepository extends JpaRepository<Payment, Long> {
 
             @Param("status")
             PaymentStatus status
+    );
+
+    @Query("""
+        SELECT
+            p.status AS status,
+            COUNT(p) AS count,
+            COALESCE(
+                SUM(p.amount),
+                0
+            ) AS totalAmount
+        FROM Payment p
+        WHERE p.booking.event.id = :eventId
+        GROUP BY p.status
+        """)
+    List<PaymentStatusSummaryProjection> summarizePaymentsForEvent(
+            @Param("eventId")
+            Long eventId
     );
 }

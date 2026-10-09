@@ -2509,4 +2509,189 @@ class EventBookingIntegrationTest {
                                 )
                 );
     }
+
+    @Test
+    void eventAnalytics_withNoBookings_shouldReturnZeroMetrics()
+            throws Exception {
+
+        String adminToken =
+                registerAndLoginAdmin(
+                        "analytics-zero-admin@example.com"
+                );
+
+
+        mockMvc.perform(
+                        get(
+                                "/api/admin/events/"
+                                        + eventId
+                                        + "/analytics"
+                        )
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer "
+                                                + adminToken
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.totalSeats")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.availableSeats")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.lockedSeats")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.bookedSeats")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.totalBookings")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.pendingBookings")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.confirmedBookings")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.paymentAttempts")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.refundAttempts")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.grossTicketSales")
+                                .value(0.00)
+                )
+
+                .andExpect(
+                        jsonPath("$.netRevenue")
+                                .value(0.00)
+                );
+    }
+
+    @Test
+    void eventAnalytics_afterPendingBooking_shouldShowLockedSeatAndPendingBooking()
+            throws Exception {
+
+        String userToken =
+                registerAndLoginUser(
+                        "analytics-pending-user@example.com"
+                );
+
+
+        String adminToken =
+                registerAndLoginAdmin(
+                        "analytics-pending-admin@example.com"
+                );
+
+
+        mockMvc.perform(
+                        post("/api/bookings")
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer "
+                                                + userToken
+                                )
+
+                                .header(
+                                        "Idempotency-Key",
+                                        "analytics-pending-001"
+                                )
+
+                                .contentType(
+                                        MediaType.APPLICATION_JSON
+                                )
+
+                                .content(
+                                        createBookingBody(
+                                                eventId,
+                                                eventSeatId
+                                        )
+                                )
+                )
+
+                .andExpect(
+                        status().isCreated()
+                );
+
+
+        mockMvc.perform(
+                        get(
+                                "/api/admin/events/"
+                                        + eventId
+                                        + "/analytics"
+                        )
+
+                                .header(
+                                        "Authorization",
+                                        "Bearer "
+                                                + adminToken
+                                )
+                )
+
+                .andExpect(
+                        status().isOk()
+                )
+
+                .andExpect(
+                        jsonPath("$.totalBookings")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.pendingBookings")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.confirmedBookings")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.lockedSeats")
+                                .value(1)
+                )
+
+                .andExpect(
+                        jsonPath("$.bookedSeats")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.paymentAttempts")
+                                .value(0)
+                )
+
+                .andExpect(
+                        jsonPath("$.grossTicketSales")
+                                .value(0.00)
+                );
+    }
 }
