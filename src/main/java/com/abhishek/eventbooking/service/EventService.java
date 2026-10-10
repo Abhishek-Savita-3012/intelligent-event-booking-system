@@ -13,6 +13,10 @@ import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.HallRepository;
 import com.abhishek.eventbooking.specification.EventSpecification;
+import com.abhishek.eventbooking.config.CacheNames;
+
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.jpa.domain.Specification;
@@ -80,13 +84,17 @@ public class EventService {
     // GET EVENT BY ID
     // ==============================
 
-    public EventResponse getEventById(Long id) {
+    @Cacheable(
+            cacheNames = CacheNames.EVENT_DETAILS,
+            key = "#eventId"
+    )
+    @Transactional(readOnly = true)
+    public EventResponse getEventById(Long eventId) {
 
-        Event event = eventRepository
-                .findById(id)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Event not found with id: " + id
+                                "Event not found with id: " + eventId
                         )
                 );
 
@@ -97,15 +105,21 @@ public class EventService {
     // UPDATE EVENT
     // ==============================
 
-    public EventResponse updateEvent(Long id, EventRequest request) {
+    @CacheEvict(
+            cacheNames = {
+                    CacheNames.EVENT_DETAILS,
+                    CacheNames.EVENT_ANALYTICS
+            },
+            key = "#eventId"
+    )
+    public EventResponse updateEvent(Long eventId, EventRequest request) {
 
         validateEventTimes(request);
 
-        Event event = eventRepository
-                .findById(id)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Event not found with id: " + id
+                                "Event not found with id: " + eventId
                         )
                 );
 
@@ -140,12 +154,19 @@ public class EventService {
     // CANCEL EVENT
     // ==============================
 
-    public void cancelEvent(Long id) {
+    @CacheEvict(
+            cacheNames = {
+                    CacheNames.EVENT_DETAILS,
+                    CacheNames.EVENT_ANALYTICS
+            },
+            key = "#eventId"
+    )
+    public void cancelEvent(Long eventId) {
 
-        Event event = eventRepository.findById(id)
+        Event event = eventRepository.findById(eventId)
                 .orElseThrow(() ->
                         new ResourceNotFoundException(
-                                "Event not found with id: " + id
+                                "Event not found with id: " + eventId
                         )
                 );
 

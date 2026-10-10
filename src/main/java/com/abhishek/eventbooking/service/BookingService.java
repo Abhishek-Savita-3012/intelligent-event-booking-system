@@ -1,5 +1,6 @@
 package com.abhishek.eventbooking.service;
 
+import com.abhishek.eventbooking.config.CacheNames;
 import com.abhishek.eventbooking.dto.request.BookingRequest;
 import com.abhishek.eventbooking.dto.request.UserBookingSearchCriteria;
 import com.abhishek.eventbooking.dto.response.*;
@@ -9,6 +10,7 @@ import com.abhishek.eventbooking.exception.ConflictException;
 import com.abhishek.eventbooking.exception.ForbiddenOperationException;
 import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 import com.abhishek.eventbooking.repository.*;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,6 +59,10 @@ public class BookingService {
     @Value("${booking.lock-duration-seconds:300}")
     private long lockDurationSeconds;
 
+    @CacheEvict(
+            cacheNames = CacheNames.EVENT_ANALYTICS,
+            key = "#request.eventId"
+    )
     @Transactional
     public BookingResponse createBooking(String email, String rawIdempotencyKey, BookingRequest request) {
 

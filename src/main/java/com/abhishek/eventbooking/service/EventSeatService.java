@@ -1,5 +1,6 @@
 package com.abhishek.eventbooking.service;
 
+import com.abhishek.eventbooking.config.CacheNames;
 import com.abhishek.eventbooking.dto.request.EventSeatGenerationRequest;
 import com.abhishek.eventbooking.dto.response.EventSeatResponse;
 import com.abhishek.eventbooking.entity.*;
@@ -9,7 +10,9 @@ import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.SeatRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.util.List;
@@ -28,6 +31,11 @@ public class EventSeatService {
         this.eventSeatRepository = eventSeatRepository;
     }
 
+    @CacheEvict(
+            cacheNames = CacheNames.EVENT_ANALYTICS,
+            key = "#eventId"
+    )
+    @Transactional
     public List<EventSeatResponse> generateEventSeats(Long eventId, EventSeatGenerationRequest request) {
 
         Event event = eventRepository.findById(eventId)

@@ -12,6 +12,9 @@ import com.abhishek.eventbooking.entity.*;
 
 import com.abhishek.eventbooking.exception.ResourceNotFoundException;
 
+import com.abhishek.eventbooking.config.CacheNames;
+import org.springframework.cache.annotation.Cacheable;
+
 import com.abhishek.eventbooking.repository.BookingRepository;
 import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
@@ -41,6 +44,10 @@ public class AdminEventAnalyticsService {
     private final PaymentRepository paymentRepository;
     private final RefundRepository refundRepository;
 
+    @Cacheable(
+            cacheNames = CacheNames.EVENT_ANALYTICS,
+            key = "#eventId"
+    )
     @Transactional(readOnly = true)
     public EventAnalyticsResponse getEventAnalytics(Long eventId) {
 
