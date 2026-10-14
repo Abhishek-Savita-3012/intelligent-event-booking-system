@@ -14,6 +14,8 @@ import com.abhishek.eventbooking.repository.EventRepository;
 import com.abhishek.eventbooking.repository.EventSeatRepository;
 import com.abhishek.eventbooking.repository.UserRepository;
 
+import com.abhishek.eventbooking.service.lock.RedisSeatLockHandle;
+import com.abhishek.eventbooking.service.lock.RedisSeatLockService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -65,6 +67,9 @@ class BookingServiceTest {
 
     @Mock
     private BookingRepository bookingRepository;
+
+    @Mock
+    private RedisSeatLockService redisSeatLockService;
 
     @Mock
     private BookingSeatRepository bookingSeatRepository;

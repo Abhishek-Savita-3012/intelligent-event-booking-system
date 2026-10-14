@@ -20,6 +20,10 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import com.abhishek.eventbooking.service.lock.RedisSeatLockHandle;
+import com.abhishek.eventbooking.service.lock.RedisSeatLockService;
+
+import java.util.Optional;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
@@ -40,13 +44,14 @@ public class BookingService {
     private final EventSeatRepository eventSeatRepository;
     private final UserRepository userRepository;
     private final PaymentRepository paymentRepository;
+    private final RedisSeatLockService redisSeatLockService;
 
     public BookingService(
             BookingRepository bookingRepository,
             BookingSeatRepository bookingSeatRepository,
             EventRepository eventRepository,
             EventSeatRepository eventSeatRepository,
-            UserRepository userRepository, PaymentRepository paymentRepository
+            UserRepository userRepository, PaymentRepository paymentRepository, RedisSeatLockService redisSeatLockService
     ) {
         this.bookingRepository = bookingRepository;
         this.bookingSeatRepository = bookingSeatRepository;
@@ -54,6 +59,7 @@ public class BookingService {
         this.eventSeatRepository = eventSeatRepository;
         this.userRepository = userRepository;
         this.paymentRepository = paymentRepository;
+        this.redisSeatLockService = redisSeatLockService;
     }
 
     @Value("${booking.lock-duration-seconds:300}")
@@ -228,7 +234,20 @@ public class BookingService {
                         .toList();
 
         // =========================================================
-        // 9. PESSIMISTICALLY LOCK EVENT SEATS
+        // REDIS COORDINATION
+        // =========================================================
+
+
+        Optional<RedisSeatLockHandle> redisSeatLock =
+                redisSeatLockService.acquireAll(sortedSeatIds);
+
+        redisSeatLock.ifPresent(
+                redisSeatLockService
+                        ::releaseAfterTransaction
+        );
+
+        // =========================================================
+        // 9. PESSIMISTICALLY LOCK EVENT SEATS (DATABASE AUTHORITY)
         // =========================================================
 
         /*
